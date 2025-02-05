@@ -1,11 +1,10 @@
-import os
-import requests
 import streamlit as st
+import requests
+import os
 from dotenv import load_dotenv
 
-# Load API keys from .env file
+# Load environment variables
 load_dotenv()
-
 SPOONACULAR_API_KEY = os.getenv("SPOONACULAR_API_KEY")
 EDAMAM_API_ID = os.getenv("EDAMAM_API_ID")
 EDAMAM_API_KEY = os.getenv("EDAMAM_API_KEY")
@@ -17,96 +16,84 @@ PERSONALITY_TO_CUISINE = {
     "Conscientiousness": ["Balanced", "Low-Carb", "Mediterranean"],
     "Extraversion": ["BBQ", "Mexican", "Italian"],
     "Agreeableness": ["Vegetarian", "Comfort Food", "Vegan"],
-    "Neuroticism": ["Healthy", "Mediterranean", "Comfort Food"],
-    "Adventurous": ["Thai", "Ethiopian", "Korean"],
-    "Romantic": ["French", "Italian", "Greek"],
-    "Practical": ["American", "Mediterranean", "Farm-to-Table"],
-    "Energetic": ["Smoothies", "Mexican", "Fusion"],
-    "Relaxed": ["Comfort Food", "Soup & Stews", "Tea-based Dishes"]
+    "Neuroticism": ["Healthy", "Mediterranean", "Comfort Food"]
 }
 
-def get_recipe(personality_trait, max_calories, quick_meal, dish_type, retries=3):
+def get_recipe(personality_trait, max_calories, quick_meal, dish_type):
     cuisine_list = PERSONALITY_TO_CUISINE.get(personality_trait, ["Italian"])
+    selected_cuisine = cuisine_list[0]
     max_ready_time = 30 if quick_meal else 60
-
-    # Base URL
-    base_url = f"https://api.spoonacular.com/recipes/random?apiKey={SPOONACULAR_API_KEY}&number=1"
-
-    # Apply filters carefully
-    url = base_url
-    if max_calories > 100:  # Avoid extreme restrictions
-        url += f"&nutritionFilter=calories<{max_calories}"
-    if max_ready_time:
-        url += f"&maxReadyTime={max_ready_time}"
-    if dish_type.lower() in ["v", "vegetarian"]:
+    url = f"https://api.spoonacular.com/recipes/random?apiKey={SPOONACULAR_API_KEY}&number=1&maxCalories={max_calories}&maxReadyTime={max_ready_time}"
+    
+    if dish_type.lower() == "vegetarian":
         url += "&diet=vegetarian"
-
-    print(f"🔗 API Request URL: {url}")  # Debugging print
-
-    for attempt in range(retries):
-        response = requests.get(url)
-        print(f"📡 API Response Attempt {attempt+1}: Status {response.status_code}")
-
-        try:
-            data = response.json()
-            print(f"📜 API Response Data: {data}")  # Debugging print
-        except Exception as e:
-            print(f"❌ Error parsing JSON response: {e}")
-            continue
-
-        if response.status_code == 200 and "recipes" in data and data["recipes"]:
-            recipe = data["recipes"][0]
-            return {
-                "title": recipe["title"],
-                "image": recipe["image"],
-                "instructions": recipe.get("instructions", "No instructions provided."),
-                "ingredients": [ingredient["name"] for ingredient in recipe.get("extendedIngredients", [])],
-                "cuisine": cuisine_list[0],
-                "readyInMinutes": recipe.get("readyInMinutes", "N/A"),
-                "servings": recipe.get("servings", "N/A"),
-            }
-
-    # Backup request without filters
-    print("⚠️ No recipe found with filters. Retrying without filters...")
-    response = requests.get(base_url)
+    
+    response = requests.get(url)
     if response.status_code == 200:
         data = response.json()
-        if "recipes" in data and data["recipes"]:
+        if data.get("recipes"):
             recipe = data["recipes"][0]
             return {
                 "title": recipe["title"],
                 "image": recipe["image"],
-                "instructions": recipe.get("instructions", "No instructions provided."),
-                "ingredients": [ingredient["name"] for ingredient in recipe.get("extendedIngredients", [])],
-                "cuisine": "General",
-                "readyInMinutes": recipe.get("readyInMinutes", "N/A"),
-                "servings": recipe.get("servings", "N/A"),
+                "instructions": recipe["instructions"],
+                "ingredients": [ingredient["name"] for ingredient in recipe["extendedIngredients"]],
+                "cuisine": selected_cuisine
             }
-
     return None
 
-# Streamlit UI
-st.set_page_config(page_title="BiteByType - Meals that Fit Your Personality")
-st.title("🍽️ BiteByType - Meals that Fit Your Personality")
+def get_nutrition_info(ingredients):
+    url = "https://api.edamam.com/api/nutrition-details"
+    params = {"app_id": EDAMAM_API_ID, "app_key": EDAMAM_API_KEY}
+    payload = {"ingr": ingredients}
+    response = requests.post(url, json=payload, params=params)
+    if response.status_code == 200:
+        return response.json()
+    return None
 
-personality = st.selectbox("Select your dominant personality trait:", list(PERSONALITY_TO_CUISINE.keys()))
-location = st.text_input("Enter your city or location:")
-calorie_intake = st.number_input("Enter your desired calorie intake per meal (in calories):", min_value=100, max_value=2000, value=500)
-quick_meal = st.checkbox("Do you want a quick meal (under 30 minutes)?")
-dish_type = st.radio("Choose your preference:", ["Vegetarian (v)", "Non-Vegetarian (nv)"])
-dish_type = "v" if "Vegetarian" in dish_type else "nv"
+def get_restaurant_suggestions(location, cuisine):
+    url = "https://api.yelp.com/v3/businesses/search"
+    headers = {"Authorization": f"Bearer {YELP_API_KEY}"}
+    params = {"term": cuisine, "location": location, "limit": 5}
+    response = requests.get(url, headers=headers, params=params)
+    if response.status_code == 200:
+        return response.json().get("businesses", [])
+    return []
+
+# Streamlit App
+st.title("🍽️ Personalized Recipe & Restaurant Finder")
+
+personality = st.selectbox("Select your dominant personality trait", list(PERSONALITY_TO_CUISINE.keys()))
+location = st.text_input("Enter your city or location (for restaurant suggestions)")
+calorie_intake = st.number_input("Enter your desired calorie intake per meal", min_value=100, max_value=2000, value=500)
+quick_meal = st.checkbox("Quick Meal (Under 30 minutes)")
+dish_type = st.radio("Choose dish type", ["Vegetarian", "Non-Vegetarian"], index=0)
 
 if st.button("Find Recipe"):
     recipe = get_recipe(personality, calorie_intake, quick_meal, dish_type)
     if recipe:
         st.subheader(f"🍽️ Recommended Recipe: {recipe['title']}")
-        st.image(recipe['image'], use_column_width=True)
-        st.write(f"⏳ Ready in: {recipe['readyInMinutes']} minutes")
-        st.write(f"🍽️ Servings: {recipe['servings']}")
-        
-        st.write("📌 **Ingredients:**")
+        st.image(recipe['image'], width=400)
+        st.write("### Ingredients:")
         st.write("\n".join([f"- {ingredient}" for ingredient in recipe["ingredients"]]))
-        st.write("📖 **Instructions:**")
-        st.markdown(recipe["instructions"], unsafe_allow_html=True)
+        st.write("### Instructions:")
+        st.write(recipe["instructions"])
+        
+        nutrition = get_nutrition_info(recipe["ingredients"])
+        if nutrition:
+            st.write("### 🔬 Nutrition Analysis:")
+            st.write(f"- **Calories:** {nutrition['calories']}")
+            st.write(f"- **Protein:** {nutrition['totalNutrients']['PROCNT']['quantity']}g")
+            st.write(f"- **Carbs:** {nutrition['totalNutrients']['CHOCDF']['quantity']}g")
+            st.write(f"- **Fats:** {nutrition['totalNutrients']['FAT']['quantity']}g")
+        
+        if location:
+            restaurants = get_restaurant_suggestions(location, recipe["cuisine"])
+            if restaurants:
+                st.write("### 🍴 Nearby Restaurants:")
+                for restaurant in restaurants:
+                    st.write(f"- **{restaurant['name']}** ({restaurant['rating']}⭐) - {restaurant['location'].get('address1', 'Address not available')}")
+            else:
+                st.write("❌ No nearby restaurants found.")
     else:
-        st.write("❌ No recipe found. Please try again later!")
+        st.write("❌ No recipe found, try again later!")
