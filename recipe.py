@@ -17,7 +17,11 @@ PERSONALITY_TO_CUISINE = {
     "Conscientiousness": ["Balanced", "Low-Carb", "Mediterranean"],
     "Extraversion": ["BBQ", "Mexican", "Italian"],
     "Agreeableness": ["Vegetarian", "Comfort Food", "Vegan"],
-    "Neuroticism": ["Healthy", "Mediterranean", "Comfort Food"]
+    "Neuroticism": ["Healthy", "Mediterranean", "Comfort Food"],
+    "Adventurous": ["Thai", "Korean", "Ethiopian"],
+    "Analytical": ["French", "Greek", "Fusion"],
+    "Creative": ["Molecular Gastronomy", "Experimental", "Fusion"],
+    "Traditional": ["American", "British", "German"]
 }
 
 # Supported diet types
@@ -26,7 +30,8 @@ diet_types = [
     "Pescetarian", "Paleo", "Primal", "Low FODMAP", "Whole30"
 ]
 
-def get_recipe(personality_trait, max_calories, quick_meal, diet, cuisine):
+def get_recipe(personality_trait, max_calories, quick_meal, diet):
+    cuisine = PERSONALITY_TO_CUISINE.get(personality_trait, ["Italian"])[0]
     max_ready_time = 30 if quick_meal else 60
     url = f"https://api.spoonacular.com/recipes/random?apiKey={SPOONACULAR_API_KEY}&number=1&maxCalories={max_calories}&maxReadyTime={max_ready_time}&addRecipeNutrition=true&diet={diet}&cuisine={cuisine}"
     
@@ -75,10 +80,9 @@ location = st.text_input("Enter your city or location (for restaurant suggestion
 calorie_intake = st.number_input("Enter your desired calorie intake per meal", min_value=100, max_value=2000, value=500)
 quick_meal = st.checkbox("Quick Meal (Under 30 minutes)")
 diet = st.selectbox("Choose your diet preference", diet_types)
-cuisine = st.text_input("Enter preferred cuisine (e.g., Italian, Mexican, Indian)")
 
 if st.button("Find Recipe"):
-    recipe = get_recipe(personality, calorie_intake, quick_meal, diet, cuisine)
+    recipe = get_recipe(personality, calorie_intake, quick_meal, diet)
     if recipe:
         st.subheader(f"🍽️ Recommended Recipe: {recipe['title']}")
         st.image(recipe['image'], width=400)
@@ -93,7 +97,7 @@ if st.button("Find Recipe"):
         st.write(f"- **Fat:** {recipe['fat']} g")
         
         if location:
-            restaurants = get_restaurant_suggestions(location, cuisine)
+            restaurants = get_restaurant_suggestions(location, recipe["cuisine"])
             if restaurants:
                 st.write("### 🍴 Nearby Restaurants:")
                 for restaurant in restaurants:
