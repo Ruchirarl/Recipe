@@ -1,10 +1,11 @@
 import streamlit as st
 import requests
 import os
-from dotenv import load_dotenv
 
-# Load environment variables
-load_dotenv()
+# Set Streamlit page title
+st.set_page_config(page_title="BiteByType - Meals that fit your personality")
+
+# Load environment variables from Streamlit secrets
 SPOONACULAR_API_KEY = st.secrets["SPOONACULAR_API_KEY"]
 EDAMAM_API_ID = st.secrets["EDAMAM_API_ID"]
 EDAMAM_API_KEY = st.secrets["EDAMAM_API_KEY"]
@@ -38,7 +39,10 @@ def get_recipe(personality_trait, max_calories, quick_meal, dish_type):
                 "image": recipe["image"],
                 "instructions": recipe["instructions"],
                 "ingredients": [ingredient["name"] for ingredient in recipe["extendedIngredients"]],
-                "cuisine": selected_cuisine
+                "cuisine": selected_cuisine,
+                "calories": recipe["nutrition"]["nutrients"][0]["amount"],
+                "protein": recipe["nutrition"]["nutrients"][8]["amount"],
+                "fat": recipe["nutrition"]["nutrients"][1]["amount"]
             }
     return None
 
@@ -61,7 +65,7 @@ def get_restaurant_suggestions(location, cuisine):
     return []
 
 # Streamlit App
-st.title("🍽️ Personalized Recipe & Restaurant Finder")
+st.title("🍽️ BiteByType - Meals that fit your personality")
 
 personality = st.selectbox("Select your dominant personality trait", list(PERSONALITY_TO_CUISINE.keys()))
 location = st.text_input("Enter your city or location (for restaurant suggestions)")
@@ -79,13 +83,10 @@ if st.button("Find Recipe"):
         st.write("### Instructions:")
         st.write(recipe["instructions"])
         
-        nutrition = get_nutrition_info(recipe["ingredients"])
-        if nutrition:
-            st.write("### 🔬 Nutrition Analysis:")
-            st.write(f"- **Calories:** {nutrition['calories']}")
-            st.write(f"- **Protein:** {nutrition['totalNutrients']['PROCNT']['quantity']}g")
-            st.write(f"- **Carbs:** {nutrition['totalNutrients']['CHOCDF']['quantity']}g")
-            st.write(f"- **Fats:** {nutrition['totalNutrients']['FAT']['quantity']}g")
+        st.write("### 🔬 Nutrition Facts (from Spoonacular):")
+        st.write(f"- **Calories:** {recipe['calories']} kcal")
+        st.write(f"- **Protein:** {recipe['protein']} g")
+        st.write(f"- **Fat:** {recipe['fat']} g")
         
         if location:
             restaurants = get_restaurant_suggestions(location, recipe["cuisine"])
