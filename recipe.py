@@ -28,6 +28,33 @@ diet_types = [
     "Pescetarian", "Paleo", "Primal", "Low FODMAP", "Whole30"
 ]
 
+def get_recipe_by_personality(personality, diet):
+    cuisine = PERSONALITY_TO_CUISINE.get(personality, ["Italian"])[0]
+    url = "https://api.spoonacular.com/recipes/random"
+    params = {
+        "apiKey": SPOONACULAR_API_KEY,
+        "number": 1,
+        "diet": diet,
+        "cuisine": cuisine,
+        "instructionsRequired": True
+    }
+    response = requests.get(url, params=params)
+    data = response.json()
+    return data.get("recipes", [None])[0] if response.status_code == 200 and "recipes" in data else None
+
+def get_recipe_by_ingredient(ingredient, max_time):
+    url = "https://api.spoonacular.com/recipes/complexSearch"
+    params = {
+        "apiKey": SPOONACULAR_API_KEY,
+        "includeIngredients": ingredient,
+        "maxReadyTime": max_time,
+        "number": 1,
+        "instructionsRequired": True
+    }
+    response = requests.get(url, params=params)
+    data = response.json()
+    return get_recipe_details_by_id(data["results"][0]["id"]) if response.status_code == 200 and "results" in data and data["results"] else None
+
 def get_recipe_by_nutrients(nutrient, min_value, max_value, max_time):
     url = "https://api.spoonacular.com/recipes/findByNutrients"
     params = {
@@ -40,7 +67,13 @@ def get_recipe_by_nutrients(nutrient, min_value, max_value, max_time):
     }
     response = requests.get(url, params=params)
     data = response.json()
-    return data[0] if response.status_code == 200 and data else None
+    return get_recipe_details_by_id(data[0]["id"]) if response.status_code == 200 and data else None
+
+def get_recipe_details_by_id(recipe_id):
+    url = f"https://api.spoonacular.com/recipes/{recipe_id}/information"
+    params = {"apiKey": SPOONACULAR_API_KEY, "includeNutrition": True}
+    response = requests.get(url, params=params)
+    return response.json() if response.status_code == 200 else None
 
 def get_restaurants(location, cuisine):
     url = "https://api.yelp.com/v3/businesses/search"
@@ -72,20 +105,24 @@ if search_type:
     if search_type == "By Personality":
         personality = st.selectbox("Select your dominant personality trait", list(PERSONALITY_TO_CUISINE.keys()), index=None)
         diet = st.selectbox("Choose your diet preference", diet_types, index=None)
+        if st.button("Find Recipe"):
+            recipe = get_recipe_by_personality(personality, diet)
+    
     elif search_type == "By Ingredient":
         ingredient = st.text_input("Enter an ingredient", "")
         max_time = st.number_input("Enter max preparation time in minutes", min_value=5, max_value=120, value=30)
+        if st.button("Find Recipe"):
+            recipe = get_recipe_by_ingredient(ingredient, max_time)
+
     elif search_type == "By Nutrients":
         nutrient = st.selectbox("Choose a nutrient", ["Calories", "Protein", "Fat"], index=None)
         min_value = st.number_input(f"Enter minimum {nutrient}", min_value=0, max_value=5000, value=50)
         max_value = st.number_input(f"Enter maximum {nutrient}", min_value=0, max_value=5000, value=500)
         max_time = st.number_input("Enter max preparation time in minutes", min_value=5, max_value=120, value=30)
+        if st.button("Find Recipe"):
+            recipe = get_recipe_by_nutrients(nutrient, min_value, max_value, max_time)
 
     location = st.text_input("Enter your city for restaurant recommendations", "")
-
-    if st.button("Find Recipe"):
-        if search_type == "By Nutrients":
-            recipe = get_recipe_by_nutrients(nutrient, min_value, max_value, max_time)
 
 if recipe:
     details = get_recipe_details(recipe)
