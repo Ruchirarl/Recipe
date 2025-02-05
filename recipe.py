@@ -5,10 +5,10 @@ from dotenv import load_dotenv
 
 # Load environment variables
 load_dotenv()
-SPOONACULAR_API_KEY = os.getenv("SPOONACULAR_API_KEY")
-EDAMAM_API_ID = os.getenv("EDAMAM_API_ID")
-EDAMAM_API_KEY = os.getenv("EDAMAM_API_KEY")
-YELP_API_KEY = os.getenv("YELP_API_KEY")
+SPOONACULAR_API_KEY = st.secrets["SPOONACULAR_API_KEY"]
+EDAMAM_API_ID = st.secrets["EDAMAM_API_ID"]
+EDAMAM_API_KEY = st.secrets["EDAMAM_API_KEY"]
+YELP_API_KEY = st.secrets["YELP_API_KEY"]
 
 # Mapping personality traits to cuisines
 PERSONALITY_TO_CUISINE = {
