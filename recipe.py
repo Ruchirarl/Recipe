@@ -33,7 +33,6 @@ def get_recipe_by_personality(personality, diet):
     params = {
         "apiKey": SPOONACULAR_API_KEY,
         "number": 1,
-        "addRecipeNutrition": True,
         "diet": diet,
         "cuisine": cuisine
     }
@@ -85,10 +84,7 @@ def get_recipe_details(recipe):
         "title": recipe.get("title", "No title available"),
         "image": recipe.get("image", ""),
         "instructions": recipe.get("instructions", "No instructions available."),
-        "ingredients": [ingredient["original"] for ingredient in recipe.get("extendedIngredients", [])],
-        "calories": next((n["amount"] for n in recipe.get("nutrition", {}).get("nutrients", []) if n["name"] == "Calories"), "N/A"),
-        "protein": next((n["amount"] for n in recipe.get("nutrition", {}).get("nutrients", []) if n["name"] == "Protein"), "N/A"),
-        "fat": next((n["amount"] for n in recipe.get("nutrition", {}).get("nutrients", []) if n["name"] == "Fat"), "N/A"),
+        "ingredients": [ingredient["original"] for ingredient in recipe.get("extendedIngredients", [])]
     }
 
 # Streamlit App
@@ -97,6 +93,7 @@ st.title("🍽️ BiteByType - Meals that fit your personality")
 search_type = st.radio("How would you like to find a recipe?", ["By Personality", "By Ingredient", "By Nutrients"])
 
 recipe = None
+location = st.text_input("Enter your city for restaurant recommendations")
 
 if search_type == "By Personality":
     personality = st.selectbox("Select your dominant personality trait", list(PERSONALITY_TO_CUISINE.keys()))
@@ -127,9 +124,5 @@ if recipe:
         st.write("\n".join([f"- {ingredient}" for ingredient in details["ingredients"]]))
         st.write("### Instructions:")
         st.write(details["instructions"])
-        st.write("### 🔬 Nutrition Facts:")
-        st.write(f"- **Calories:** {details['calories']} kcal")
-        st.write(f"- **Protein:** {details['protein']} g")
-        st.write(f"- **Fat:** {details['fat']} g")
 else:
     st.write("❌ No recipe found, try again later!")
