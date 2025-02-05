@@ -28,31 +28,38 @@ diet_types = [
     "Pescetarian", "Paleo", "Primal", "Low FODMAP", "Whole30"
 ]
 
+# Function to fetch recipes based on personality
 def get_recipe_by_personality(personality, max_calories, quick_meal, diet):
     cuisine = PERSONALITY_TO_CUISINE.get(personality, ["Italian"])[0]
     max_ready_time = 30 if quick_meal else 60
     url = f"https://api.spoonacular.com/recipes/random?apiKey={SPOONACULAR_API_KEY}&number=1&maxCalories={max_calories}&maxReadyTime={max_ready_time}&addRecipeNutrition=true&diet={diet}&cuisine={cuisine}"
-
+    
     response = requests.get(url)
     return response.json().get("recipes", [None])[0] if response.status_code == 200 else None
 
+# Function to fetch recipes based on an ingredient
 def get_recipe_by_ingredient(ingredient):
     url = f"https://api.spoonacular.com/recipes/complexSearch?apiKey={SPOONACULAR_API_KEY}&includeIngredients={ingredient}&number=1&addRecipeNutrition=true"
-
+    
     response = requests.get(url)
     return response.json().get("results", [None])[0] if response.status_code == 200 else None
 
+# Function to fetch recipes based on nutrients
 def get_recipe_by_nutrients(nutrient, min_value, max_value):
     url = f"https://api.spoonacular.com/recipes/findByNutrients?apiKey={SPOONACULAR_API_KEY}&min{nutrient}={min_value}&max{nutrient}={max_value}&number=1"
 
     response = requests.get(url)
     return response.json()[0] if response.status_code == 200 and response.json() else None
 
+# Function to validate and get recipe details
 def get_recipe_details(recipe):
+    if not recipe:
+        return None
+
     nutrition = recipe.get("nutrition", {}).get("nutrients", [])
     if not nutrition:
         return None  # Skip recipes without nutrition info
-
+    
     return {
         "title": recipe.get("title", "No title available"),
         "image": recipe.get("image", ""),
@@ -61,12 +68,15 @@ def get_recipe_details(recipe):
         "calories": next((n["amount"] for n in nutrition if n["name"] == "Calories"), "N/A"),
         "protein": next((n["amount"] for n in nutrition if n["name"] == "Protein"), "N/A"),
         "fat": next((n["amount"] for n in nutrition if n["name"] == "Fat"), "N/A"),
+        "cuisine": recipe.get("cuisines", ["Unknown"])[0]
     }
 
+# Function to fetch nearby restaurants
 def get_restaurants(location, cuisine):
     url = "https://api.yelp.com/v3/businesses/search"
     headers = {"Authorization": f"Bearer {YELP_API_KEY}"}
     params = {"term": cuisine, "location": location, "limit": 5}
+    
     response = requests.get(url, headers=headers, params=params)
     return response.json().get("businesses", []) if response.status_code == 200 else []
 
@@ -75,7 +85,7 @@ st.title("🍽️ BiteByType - Meals that fit your personality")
 
 search_type = st.radio("How would you like to find a recipe?", ["By Personality", "By Ingredient", "By Nutrients"])
 
-recipe = None  # Initialize recipe variable to avoid NameError
+recipe = None  # Initialize recipe variable
 
 if search_type == "By Personality":
     personality = st.selectbox("Select your dominant personality trait", list(PERSONALITY_TO_CUISINE.keys()))
@@ -114,8 +124,8 @@ if recipe:
         st.write(f"- **Protein:** {details['protein']} g")
         st.write(f"- **Fat:** {details['fat']} g")
 
-        if location:
-            restaurants = get_restaurants(location, recipe.get("cuisine", ""))
+        if search_type == "By Personality" and location:
+            restaurants = get_restaurants(location, details["cuisine"])
             if restaurants:
                 st.write("### 🍴 Nearby Restaurants:")
                 for restaurant in restaurants:
