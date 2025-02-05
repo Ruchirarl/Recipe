@@ -28,15 +28,12 @@ diet_types = [
     "Pescetarian", "Paleo", "Primal", "Low FODMAP", "Whole30"
 ]
 
-def get_recipe_by_personality(personality, max_calories, quick_meal, diet):
+def get_recipe_by_personality(personality, diet):
     cuisine = PERSONALITY_TO_CUISINE.get(personality, ["Italian"])[0]
-    max_ready_time = 30 if quick_meal else 60
     url = "https://api.spoonacular.com/recipes/random"
     params = {
         "apiKey": SPOONACULAR_API_KEY,
         "number": 1,
-        "maxCalories": max_calories,
-        "maxReadyTime": max_ready_time,
         "addRecipeNutrition": True,
         "diet": diet,
         "cuisine": cuisine
@@ -44,24 +41,29 @@ def get_recipe_by_personality(personality, max_calories, quick_meal, diet):
     response = requests.get(url, params=params)
     return response.json().get("recipes", [None])[0] if response.status_code == 200 else None
 
-def get_recipe_by_ingredient(ingredient):
+def get_recipe_by_ingredient(ingredient, max_time):
     url = "https://api.spoonacular.com/recipes/complexSearch"
     params = {
         "apiKey": SPOONACULAR_API_KEY,
         "includeIngredients": ingredient,
+        "maxReadyTime": max_time,
         "number": 1,
         "addRecipeNutrition": True
     }
     response = requests.get(url, params=params)
     return response.json().get("results", [None])[0] if response.status_code == 200 else None
 
-def get_recipe_by_nutrients(nutrient, min_value, max_value):
+def get_recipe_by_nutrients(calories, protein, fat, min_value, max_value, max_time, diet):
     url = "https://api.spoonacular.com/recipes/findByNutrients"
     params = {
         "apiKey": SPOONACULAR_API_KEY,
-        f"min{nutrient}": min_value,
-        f"max{nutrient}": max_value,
-        "number": 1
+        "minCalories": min_value,
+        "maxCalories": max_value,
+        "minProtein": protein,
+        "minFat": fat,
+        "maxReadyTime": max_time,
+        "number": 1,
+        "diet": diet
     }
     response = requests.get(url, params=params)
     return response.json()[0] if response.status_code == 200 and response.json() else None
@@ -81,13 +83,6 @@ def get_recipe_details(recipe):
         "fat": next((n["amount"] for n in nutrition if n["name"] == "Fat"), "N/A"),
     }
 
-def get_restaurants(location, cuisine):
-    url = "https://api.yelp.com/v3/businesses/search"
-    headers = {"Authorization": f"Bearer {YELP_API_KEY}"}
-    params = {"term": cuisine, "location": location, "limit": 5}
-    response = requests.get(url, headers=headers, params=params)
-    return response.json().get("businesses", []) if response.status_code == 200 else []
-
 # Streamlit App
 st.title("🍽️ BiteByType - Meals that fit your personality")
 
@@ -97,24 +92,27 @@ recipe = None  # Initialize recipe variable
 
 if search_type == "By Personality":
     personality = st.selectbox("Select your dominant personality trait", list(PERSONALITY_TO_CUISINE.keys()))
-    calorie_intake = st.number_input("Enter your desired calorie intake per meal", min_value=100, max_value=2000, value=500)
-    quick_meal = st.checkbox("Quick Meal (Under 30 minutes)")
     diet = st.selectbox("Choose your diet preference", diet_types)
     location = st.text_input("Enter your city for restaurant recommendations")
     if st.button("Find Recipe"):
-        recipe = get_recipe_by_personality(personality, calorie_intake, quick_meal, diet)
+        recipe = get_recipe_by_personality(personality, diet)
 
 elif search_type == "By Ingredient":
     ingredient = st.text_input("Enter an ingredient")
+    max_time = st.number_input("Enter max preparation time in minutes", min_value=5, max_value=120, value=30)
     if st.button("Find Recipe"):
-        recipe = get_recipe_by_ingredient(ingredient)
+        recipe = get_recipe_by_ingredient(ingredient, max_time)
 
 elif search_type == "By Nutrients":
-    nutrient = st.selectbox("Choose a nutrient", ["Calories", "Protein", "Carbs", "Fat"])
-    min_value = st.number_input(f"Enter minimum {nutrient}", min_value=0, max_value=1000, value=50)
-    max_value = st.number_input(f"Enter maximum {nutrient}", min_value=0, max_value=5000, value=500)
+    calories = st.number_input("Enter calorie intake", min_value=0, max_value=5000, value=500)
+    protein = st.number_input("Enter protein intake", min_value=0, max_value=500, value=50)
+    fat = st.number_input("Enter fat intake", min_value=0, max_value=500, value=50)
+    min_value = st.number_input("Enter minimum calorie range", min_value=0, max_value=5000, value=50)
+    max_value = st.number_input("Enter maximum calorie range", min_value=0, max_value=5000, value=500)
+    max_time = st.number_input("Enter max preparation time in minutes", min_value=5, max_value=120, value=30)
+    diet = st.selectbox("Choose your diet preference", diet_types)
     if st.button("Find Recipe"):
-        recipe = get_recipe_by_nutrients(nutrient, min_value, max_value)
+        recipe = get_recipe_by_nutrients(calories, protein, fat, min_value, max_value, max_time, diet)
 
 if recipe:
     details = get_recipe_details(recipe)
