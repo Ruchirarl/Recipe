@@ -28,34 +28,45 @@ diet_types = [
     "Pescetarian", "Paleo", "Primal", "Low FODMAP", "Whole30"
 ]
 
-# Function to fetch recipes based on personality
 def get_recipe_by_personality(personality, max_calories, quick_meal, diet):
     cuisine = PERSONALITY_TO_CUISINE.get(personality, ["Italian"])[0]
     max_ready_time = 30 if quick_meal else 60
-    url = f"https://api.spoonacular.com/recipes/random?apiKey={SPOONACULAR_API_KEY}&number=1&maxCalories={max_calories}&maxReadyTime={max_ready_time}&addRecipeNutrition=true&diet={diet}&cuisine={cuisine}"
-    
-    response = requests.get(url)
+    url = "https://api.spoonacular.com/recipes/random"
+    params = {
+        "apiKey": SPOONACULAR_API_KEY,
+        "number": 1,
+        "maxCalories": max_calories,
+        "maxReadyTime": max_ready_time,
+        "addRecipeNutrition": True,
+        "diet": diet,
+        "cuisine": cuisine
+    }
+    response = requests.get(url, params=params)
     return response.json().get("recipes", [None])[0] if response.status_code == 200 else None
 
-# Function to fetch recipes based on an ingredient
 def get_recipe_by_ingredient(ingredient):
-    url = f"https://api.spoonacular.com/recipes/complexSearch?apiKey={SPOONACULAR_API_KEY}&includeIngredients={ingredient}&number=1&addRecipeNutrition=true"
-    
-    response = requests.get(url)
+    url = "https://api.spoonacular.com/recipes/complexSearch"
+    params = {
+        "apiKey": SPOONACULAR_API_KEY,
+        "includeIngredients": ingredient,
+        "number": 1,
+        "addRecipeNutrition": True
+    }
+    response = requests.get(url, params=params)
     return response.json().get("results", [None])[0] if response.status_code == 200 else None
 
-# Function to fetch recipes based on nutrients
 def get_recipe_by_nutrients(nutrient, min_value, max_value):
-    url = f"https://api.spoonacular.com/recipes/findByNutrients?apiKey={SPOONACULAR_API_KEY}&min{nutrient}={min_value}&max{nutrient}={max_value}&number=1"
-
-    response = requests.get(url)
+    url = "https://api.spoonacular.com/recipes/findByNutrients"
+    params = {
+        "apiKey": SPOONACULAR_API_KEY,
+        f"min{nutrient}": min_value,
+        f"max{nutrient}": max_value,
+        "number": 1
+    }
+    response = requests.get(url, params=params)
     return response.json()[0] if response.status_code == 200 and response.json() else None
 
-# Function to validate and get recipe details
 def get_recipe_details(recipe):
-    if not recipe:
-        return None
-
     nutrition = recipe.get("nutrition", {}).get("nutrients", [])
     if not nutrition:
         return None  # Skip recipes without nutrition info
@@ -68,15 +79,12 @@ def get_recipe_details(recipe):
         "calories": next((n["amount"] for n in nutrition if n["name"] == "Calories"), "N/A"),
         "protein": next((n["amount"] for n in nutrition if n["name"] == "Protein"), "N/A"),
         "fat": next((n["amount"] for n in nutrition if n["name"] == "Fat"), "N/A"),
-        "cuisine": recipe.get("cuisines", ["Unknown"])[0]
     }
 
-# Function to fetch nearby restaurants
 def get_restaurants(location, cuisine):
     url = "https://api.yelp.com/v3/businesses/search"
     headers = {"Authorization": f"Bearer {YELP_API_KEY}"}
     params = {"term": cuisine, "location": location, "limit": 5}
-    
     response = requests.get(url, headers=headers, params=params)
     return response.json().get("businesses", []) if response.status_code == 200 else []
 
@@ -93,7 +101,6 @@ if search_type == "By Personality":
     quick_meal = st.checkbox("Quick Meal (Under 30 minutes)")
     diet = st.selectbox("Choose your diet preference", diet_types)
     location = st.text_input("Enter your city for restaurant recommendations")
-    
     if st.button("Find Recipe"):
         recipe = get_recipe_by_personality(personality, calorie_intake, quick_meal, diet)
 
@@ -109,7 +116,6 @@ elif search_type == "By Nutrients":
     if st.button("Find Recipe"):
         recipe = get_recipe_by_nutrients(nutrient, min_value, max_value)
 
-# Display the recipe if found and contains nutrition data
 if recipe:
     details = get_recipe_details(recipe)
     if details:
@@ -123,16 +129,5 @@ if recipe:
         st.write(f"- **Calories:** {details['calories']} kcal")
         st.write(f"- **Protein:** {details['protein']} g")
         st.write(f"- **Fat:** {details['fat']} g")
-
-        if search_type == "By Personality" and location:
-            restaurants = get_restaurants(location, details["cuisine"])
-            if restaurants:
-                st.write("### 🍴 Nearby Restaurants:")
-                for restaurant in restaurants:
-                    st.write(f"- **{restaurant['name']}** ({restaurant['rating']}⭐) - {restaurant['location'].get('address1', 'Address not available')}")
-            else:
-                st.write("❌ No nearby restaurants found.")
-    else:
-        st.write("❌ No valid recipe found with nutrition information. Try again!")
 else:
     st.write("❌ No recipe found, try again later!")
