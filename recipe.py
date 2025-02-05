@@ -9,6 +9,8 @@ st.set_page_config(page_title="🍽️ BiteByType - Meals that fit your personal
 SPOONACULAR_API_KEY = st.secrets["SPOONACULAR_API_KEY"]
 YELP_API_KEY = st.secrets["YELP_API_KEY"]
 
+st.title("🍽️ BiteByType - Meals that fit your personality")
+
 st.markdown(
     """
     ## 🥗 Welcome to BiteByType!
@@ -109,7 +111,6 @@ def get_recipe_details(recipe):
     }
 
 # Streamlit App
-st.title("🍽️ BiteByType - Meals that fit your personality")
 
 search_type = st.radio("How would you like to find a recipe?", ["By Personality", "By Ingredient", "By Nutrients"], index=None)
 
