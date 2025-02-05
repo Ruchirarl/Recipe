@@ -28,11 +28,31 @@ diet_types = [
     "Pescetarian", "Paleo", "Primal", "Low FODMAP", "Whole30"
 ]
 
+def get_recipe_by_personality(personality, max_calories, quick_meal, diet):
+    cuisine = PERSONALITY_TO_CUISINE.get(personality, ["Italian"])[0]
+    max_ready_time = 30 if quick_meal else 60
+    url = f"https://api.spoonacular.com/recipes/random?apiKey={SPOONACULAR_API_KEY}&number=1&maxCalories={max_calories}&maxReadyTime={max_ready_time}&addRecipeNutrition=true&diet={diet}&cuisine={cuisine}"
+
+    response = requests.get(url)
+    return response.json().get("recipes", [None])[0] if response.status_code == 200 else None
+
+def get_recipe_by_ingredient(ingredient):
+    url = f"https://api.spoonacular.com/recipes/complexSearch?apiKey={SPOONACULAR_API_KEY}&includeIngredients={ingredient}&number=1&addRecipeNutrition=true"
+
+    response = requests.get(url)
+    return response.json().get("results", [None])[0] if response.status_code == 200 else None
+
+def get_recipe_by_nutrients(nutrient, min_value, max_value):
+    url = f"https://api.spoonacular.com/recipes/findByNutrients?apiKey={SPOONACULAR_API_KEY}&min{nutrient}={min_value}&max{nutrient}={max_value}&number=1"
+
+    response = requests.get(url)
+    return response.json()[0] if response.status_code == 200 and response.json() else None
+
 def get_recipe_details(recipe):
     nutrition = recipe.get("nutrition", {}).get("nutrients", [])
     if not nutrition:
         return None  # Skip recipes without nutrition info
-    
+
     return {
         "title": recipe.get("title", "No title available"),
         "image": recipe.get("image", ""),
@@ -55,12 +75,15 @@ st.title("🍽️ BiteByType - Meals that fit your personality")
 
 search_type = st.radio("How would you like to find a recipe?", ["By Personality", "By Ingredient", "By Nutrients"])
 
+recipe = None  # Initialize recipe variable to avoid NameError
+
 if search_type == "By Personality":
     personality = st.selectbox("Select your dominant personality trait", list(PERSONALITY_TO_CUISINE.keys()))
     calorie_intake = st.number_input("Enter your desired calorie intake per meal", min_value=100, max_value=2000, value=500)
     quick_meal = st.checkbox("Quick Meal (Under 30 minutes)")
     diet = st.selectbox("Choose your diet preference", diet_types)
     location = st.text_input("Enter your city for restaurant recommendations")
+    
     if st.button("Find Recipe"):
         recipe = get_recipe_by_personality(personality, calorie_intake, quick_meal, diet)
 
@@ -76,6 +99,7 @@ elif search_type == "By Nutrients":
     if st.button("Find Recipe"):
         recipe = get_recipe_by_nutrients(nutrient, min_value, max_value)
 
+# Display the recipe if found and contains nutrition data
 if recipe:
     details = get_recipe_details(recipe)
     if details:
@@ -89,7 +113,7 @@ if recipe:
         st.write(f"- **Calories:** {details['calories']} kcal")
         st.write(f"- **Protein:** {details['protein']} g")
         st.write(f"- **Fat:** {details['fat']} g")
-        
+
         if location:
             restaurants = get_restaurants(location, recipe.get("cuisine", ""))
             if restaurants:
