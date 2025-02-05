@@ -7,6 +7,7 @@ st.set_page_config(page_title="BiteByType - Meals that fit your personality")
 
 # Load environment variables from Streamlit secrets
 SPOONACULAR_API_KEY = st.secrets["SPOONACULAR_API_KEY"]
+YELP_API_KEY = st.secrets["YELP_API_KEY"]
 
 # Mapping personality traits to cuisines
 PERSONALITY_TO_CUISINE = {
@@ -26,6 +27,13 @@ diet_types = [
     "Gluten Free", "Ketogenic", "Vegetarian", "Lacto-Vegetarian", "Ovo-Vegetarian", "Vegan", 
     "Pescetarian", "Paleo", "Primal", "Low FODMAP", "Whole30"
 ]
+
+def get_restaurants(location, cuisine):
+    url = "https://api.yelp.com/v3/businesses/search"
+    headers = {"Authorization": f"Bearer {YELP_API_KEY}"}
+    params = {"term": cuisine, "location": location, "limit": 5}
+    response = requests.get(url, headers=headers, params=params)
+    return response.json().get("businesses", []) if response.status_code == 200 else []
 
 def get_recipe_by_personality(personality, diet):
     cuisine = PERSONALITY_TO_CUISINE.get(personality, ["Italian"])[0]
@@ -93,7 +101,6 @@ st.title("🍽️ BiteByType - Meals that fit your personality")
 search_type = st.radio("How would you like to find a recipe?", ["By Personality", "By Ingredient", "By Nutrients"])
 
 recipe = None
-location = st.text_input("Enter your city for restaurant recommendations")
 
 if search_type == "By Personality":
     personality = st.selectbox("Select your dominant personality trait", list(PERSONALITY_TO_CUISINE.keys()))
@@ -115,6 +122,8 @@ elif search_type == "By Nutrients":
     if st.button("Find Recipe"):
         recipe = get_recipe_by_nutrients(nutrient, min_value, max_value, max_time)
 
+location = st.text_input("Enter your city for restaurant recommendations")
+
 if recipe:
     details = get_recipe_details(recipe)
     if details:
@@ -124,5 +133,14 @@ if recipe:
         st.write("\n".join([f"- {ingredient}" for ingredient in details["ingredients"]]))
         st.write("### Instructions:")
         st.write(details["instructions"])
+
+        if location:
+            restaurants = get_restaurants(location, details.get("cuisine", ""))
+            if restaurants:
+                st.write("### 🍴 Nearby Restaurants:")
+                for restaurant in restaurants:
+                    st.write(f"- **{restaurant['name']}** ({restaurant['rating']}⭐) - {restaurant['location'].get('address1', 'Address not available')}")
+            else:
+                st.write("❌ No nearby restaurants found.")
 else:
     st.write("❌ No recipe found, try again later!")
