@@ -23,7 +23,7 @@ PERSONALITY_TO_CUISINE = {
 
 # Supported diet types
 diet_types = [
-    "Gluten Free", "Ketogenic", "Vegetarian", "Lacto-Vegetarian", "Ovo-Vegetarian", "Vegan",
+    "Gluten Free", "Ketogenic", "Vegetarian", "Lacto-Vegetarian", "Ovo-Vegetarian", "Vegan", 
     "Pescetarian", "Paleo", "Primal", "Low FODMAP", "Whole30"
 ]
 
@@ -37,11 +37,7 @@ def get_recipe_by_personality(personality, diet):
         "diet": diet,
         "cuisine": cuisine
     }
-    
-    st.write(f"🔍 Debug API URL: {url}, Params: {params}")  # Debugging
     response = requests.get(url, params=params)
-    st.write(f"🔍 API Response: {response.json()}")  # Debugging
-
     return response.json().get("recipes", [None])[0] if response.status_code == 200 else None
 
 def get_recipe_by_ingredient(ingredient, max_time):
@@ -53,11 +49,7 @@ def get_recipe_by_ingredient(ingredient, max_time):
         "number": 1,
         "addRecipeNutrition": True
     }
-    
-    st.write(f"🔍 Debug API URL: {url}, Params: {params}")  # Debugging
     response = requests.get(url, params=params)
-    st.write(f"🔍 API Response: {response.json()}")  # Debugging
-
     return response.json().get("results", [None])[0] if response.status_code == 200 else None
 
 def get_recipe_by_nutrients(nutrient, min_value, max_value, max_time):
@@ -69,21 +61,17 @@ def get_recipe_by_nutrients(nutrient, min_value, max_value, max_time):
         "maxReadyTime": max_time,
         "number": 1
     }
-
-    st.write(f"🔍 Debug API URL: {url}, Params: {params}")  # Debugging
     response = requests.get(url, params=params)
-    st.write(f"🔍 API Response: {response.json()}")  # Debugging
-
     return response.json()[0] if response.status_code == 200 and response.json() else None
 
 def get_recipe_details(recipe):
     if not recipe:
-        return None  # Skip if no recipe found
-
+        return None
+    
     nutrition = recipe.get("nutrition", {}).get("nutrients", [])
     if not nutrition:
-        return None  # Skip recipes without nutrition info
-
+        return None
+    
     return {
         "title": recipe.get("title", "No title available"),
         "image": recipe.get("image", ""),
@@ -99,7 +87,7 @@ st.title("🍽️ BiteByType - Meals that fit your personality")
 
 search_type = st.radio("How would you like to find a recipe?", ["By Personality", "By Ingredient", "By Nutrients"])
 
-recipe = None  # Initialize recipe variable
+recipe = None
 
 if search_type == "By Personality":
     personality = st.selectbox("Select your dominant personality trait", list(PERSONALITY_TO_CUISINE.keys()))
@@ -121,7 +109,6 @@ elif search_type == "By Nutrients":
     if st.button("Find Recipe"):
         recipe = get_recipe_by_nutrients(nutrient, min_value, max_value, max_time)
 
-# Display the recipe if found and contains nutrition data
 if recipe:
     details = get_recipe_details(recipe)
     if details:
@@ -135,7 +122,5 @@ if recipe:
         st.write(f"- **Calories:** {details['calories']} kcal")
         st.write(f"- **Protein:** {details['protein']} g")
         st.write(f"- **Fat:** {details['fat']} g")
-    else:
-        st.write("❌ No valid recipe found with nutrition information. Try again!")
 else:
     st.write("❌ No recipe found, try again later!")
