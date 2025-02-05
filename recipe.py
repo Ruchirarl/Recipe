@@ -28,6 +28,21 @@ diet_types = [
     "Pescetarian", "Paleo", "Primal", "Low FODMAP", "Whole30"
 ]
 
+def get_recipe_by_nutrients(nutrient, min_value, max_value, max_time):
+    url = "https://api.spoonacular.com/recipes/findByNutrients"
+    params = {
+        "apiKey": SPOONACULAR_API_KEY,
+        f"min{nutrient}": min_value,
+        f"max{nutrient}": max_value,
+        "maxReadyTime": max_time,
+        "number": 1,
+        "addRecipeNutrition": True,
+        "instructionsRequired": True
+    }
+    response = requests.get(url, params=params)
+    data = response.json()
+    return data[0] if response.status_code == 200 and data else None
+
 def get_restaurants(location, cuisine):
     url = "https://api.yelp.com/v3/businesses/search"
     headers = {"Authorization": f"Bearer {YELP_API_KEY}"}
@@ -75,11 +90,7 @@ elif search_type == "By Nutrients":
 location = st.text_input("Enter your city for restaurant recommendations")
 
 if st.button("Find Recipe"):
-    if search_type == "By Personality":
-        recipe = get_recipe_by_personality(personality, diet)
-    elif search_type == "By Ingredient":
-        recipe = get_recipe_by_ingredient(ingredient, max_time)
-    elif search_type == "By Nutrients":
+    if search_type == "By Nutrients":
         recipe = get_recipe_by_nutrients(nutrient, min_value, max_value, max_time)
 
 if recipe:
