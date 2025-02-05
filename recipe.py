@@ -36,8 +36,7 @@ def get_recipe_by_nutrients(nutrient, min_value, max_value, max_time):
         f"max{nutrient}": max_value,
         "maxReadyTime": max_time,
         "number": 1,
-        "addRecipeNutrition": True,
-        "instructionsRequired": True
+        "addRecipeNutrition": True
     }
     response = requests.get(url, params=params)
     data = response.json()
