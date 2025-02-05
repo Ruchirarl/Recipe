@@ -38,7 +38,8 @@ def get_recipe_by_personality(personality, diet):
         "cuisine": cuisine
     }
     response = requests.get(url, params=params)
-    return response.json().get("recipes", [None])[0] if response.status_code == 200 else None
+    data = response.json()
+    return data.get("recipes", [None])[0] if response.status_code == 200 and "recipes" in data else None
 
 def get_recipe_by_ingredient(ingredient, max_time):
     url = "https://api.spoonacular.com/recipes/complexSearch"
@@ -50,7 +51,10 @@ def get_recipe_by_ingredient(ingredient, max_time):
         "addRecipeNutrition": True
     }
     response = requests.get(url, params=params)
-    return response.json().get("results", [None])[0] if response.status_code == 200 else None
+    data = response.json()
+    if response.status_code == 200 and "results" in data and data["results"]:
+        return get_recipe_details_by_id(data["results"][0]["id"])
+    return None
 
 def get_recipe_by_nutrients(nutrient, min_value, max_value, max_time):
     url = "https://api.spoonacular.com/recipes/findByNutrients"
@@ -62,24 +66,29 @@ def get_recipe_by_nutrients(nutrient, min_value, max_value, max_time):
         "number": 1
     }
     response = requests.get(url, params=params)
-    return response.json()[0] if response.status_code == 200 and response.json() else None
+    data = response.json()
+    if response.status_code == 200 and data:
+        return get_recipe_details_by_id(data[0]["id"])
+    return None
+
+def get_recipe_details_by_id(recipe_id):
+    url = f"https://api.spoonacular.com/recipes/{recipe_id}/information"
+    params = {"apiKey": SPOONACULAR_API_KEY, "includeNutrition": True}
+    response = requests.get(url, params=params)
+    return response.json() if response.status_code == 200 else None
 
 def get_recipe_details(recipe):
-    if not recipe:
-        return None
-    
-    nutrition = recipe.get("nutrition", {}).get("nutrients", [])
-    if not nutrition:
+    if not recipe or "extendedIngredients" not in recipe or "instructions" not in recipe:
         return None
     
     return {
         "title": recipe.get("title", "No title available"),
         "image": recipe.get("image", ""),
         "instructions": recipe.get("instructions", "No instructions available."),
-        "ingredients": [ingredient["name"] for ingredient in recipe.get("extendedIngredients", [])],
-        "calories": next((n["amount"] for n in nutrition if n["name"] == "Calories"), "N/A"),
-        "protein": next((n["amount"] for n in nutrition if n["name"] == "Protein"), "N/A"),
-        "fat": next((n["amount"] for n in nutrition if n["name"] == "Fat"), "N/A"),
+        "ingredients": [ingredient["original"] for ingredient in recipe.get("extendedIngredients", [])],
+        "calories": next((n["amount"] for n in recipe.get("nutrition", {}).get("nutrients", []) if n["name"] == "Calories"), "N/A"),
+        "protein": next((n["amount"] for n in recipe.get("nutrition", {}).get("nutrients", []) if n["name"] == "Protein"), "N/A"),
+        "fat": next((n["amount"] for n in recipe.get("nutrition", {}).get("nutrients", []) if n["name"] == "Fat"), "N/A"),
     }
 
 # Streamlit App
