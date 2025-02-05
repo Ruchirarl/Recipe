@@ -142,7 +142,7 @@ if recipe:
         if location:
             restaurants = get_restaurants(location, details.get("cuisine", ""))
             if restaurants:
-                st.write("\n### Nearby Restaurants:")
+                st.write("\n\n### Nearby Restaurants:\n")
                 for restaurant in restaurants:
                     st.write(f"- **{restaurant['name']}** ({restaurant['rating']}⭐) - {restaurant['location'].get('address1', 'Address not available')}")
             else:
