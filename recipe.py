@@ -20,14 +20,15 @@ PERSONALITY_TO_CUISINE = {
     "Neuroticism": ["Healthy", "Mediterranean", "Comfort Food"]
 }
 
-def get_recipe(personality_trait, max_calories, quick_meal, dish_type):
-    cuisine_list = PERSONALITY_TO_CUISINE.get(personality_trait, ["Italian"])
-    selected_cuisine = cuisine_list[0]
+# Supported diet types
+diet_types = [
+    "Gluten Free", "Ketogenic", "Vegetarian", "Lacto-Vegetarian", "Ovo-Vegetarian", "Vegan", 
+    "Pescetarian", "Paleo", "Primal", "Low FODMAP", "Whole30"
+]
+
+def get_recipe(personality_trait, max_calories, quick_meal, diet, cuisine):
     max_ready_time = 30 if quick_meal else 60
-    url = f"https://api.spoonacular.com/recipes/random?apiKey={SPOONACULAR_API_KEY}&number=1&maxCalories={max_calories}&maxReadyTime={max_ready_time}&addRecipeNutrition=true"
-    
-    if dish_type.lower() == "vegetarian":
-        url += "&diet=vegetarian"
+    url = f"https://api.spoonacular.com/recipes/random?apiKey={SPOONACULAR_API_KEY}&number=1&maxCalories={max_calories}&maxReadyTime={max_ready_time}&addRecipeNutrition=true&diet={diet}&cuisine={cuisine}"
     
     response = requests.get(url)
     if response.status_code == 200:
@@ -43,21 +44,19 @@ def get_recipe(personality_trait, max_calories, quick_meal, dish_type):
                 "image": recipe["image"],
                 "instructions": recipe["instructions"],
                 "ingredients": [ingredient["name"] for ingredient in recipe.get("extendedIngredients", [])],
-                "cuisine": selected_cuisine,
+                "cuisine": cuisine,
                 "calories": calories,
                 "protein": protein,
                 "fat": fat
             }
     return None
 
-def get_nutrition_info(ingredients):
-    url = "https://api.edamam.com/api/nutrition-details"
-    params = {"app_id": EDAMAM_API_ID, "app_key": EDAMAM_API_KEY}
-    payload = {"ingr": ingredients}
-    response = requests.post(url, json=payload, params=params)
+def get_food_joke():
+    url = f"https://api.spoonacular.com/food/jokes/random?apiKey={SPOONACULAR_API_KEY}"
+    response = requests.get(url)
     if response.status_code == 200:
-        return response.json()
-    return None
+        return response.json().get("text", "No joke available at the moment.")
+    return "No joke available."
 
 def get_restaurant_suggestions(location, cuisine):
     url = "https://api.yelp.com/v3/businesses/search"
@@ -75,10 +74,11 @@ personality = st.selectbox("Select your dominant personality trait", list(PERSON
 location = st.text_input("Enter your city or location (for restaurant suggestions)")
 calorie_intake = st.number_input("Enter your desired calorie intake per meal", min_value=100, max_value=2000, value=500)
 quick_meal = st.checkbox("Quick Meal (Under 30 minutes)")
-dish_type = st.radio("Choose dish type", ["Vegetarian", "Non-Vegetarian"], index=0)
+diet = st.selectbox("Choose your diet preference", diet_types)
+cuisine = st.text_input("Enter preferred cuisine (e.g., Italian, Mexican, Indian)")
 
 if st.button("Find Recipe"):
-    recipe = get_recipe(personality, calorie_intake, quick_meal, dish_type)
+    recipe = get_recipe(personality, calorie_intake, quick_meal, diet, cuisine)
     if recipe:
         st.subheader(f"🍽️ Recommended Recipe: {recipe['title']}")
         st.image(recipe['image'], width=400)
@@ -93,7 +93,7 @@ if st.button("Find Recipe"):
         st.write(f"- **Fat:** {recipe['fat']} g")
         
         if location:
-            restaurants = get_restaurant_suggestions(location, recipe["cuisine"])
+            restaurants = get_restaurant_suggestions(location, cuisine)
             if restaurants:
                 st.write("### 🍴 Nearby Restaurants:")
                 for restaurant in restaurants:
@@ -102,3 +102,7 @@ if st.button("Find Recipe"):
                 st.write("❌ No nearby restaurants found.")
     else:
         st.write("❌ No recipe found, try again later!")
+
+# Display a random food joke
+st.write("### 🤣 Food Joke of the Day")
+st.write(get_food_joke())
