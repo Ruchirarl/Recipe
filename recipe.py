@@ -24,7 +24,7 @@ def get_recipe(personality_trait, max_calories, quick_meal, dish_type):
     cuisine_list = PERSONALITY_TO_CUISINE.get(personality_trait, ["Italian"])
     selected_cuisine = cuisine_list[0]
     max_ready_time = 30 if quick_meal else 60
-    url = f"https://api.spoonacular.com/recipes/random?apiKey={SPOONACULAR_API_KEY}&number=1&maxCalories={max_calories}&maxReadyTime={max_ready_time}"
+    url = f"https://api.spoonacular.com/recipes/random?apiKey={SPOONACULAR_API_KEY}&number=1&maxCalories={max_calories}&maxReadyTime={max_ready_time}&addRecipeNutrition=true"
     
     if dish_type.lower() == "vegetarian":
         url += "&diet=vegetarian"
@@ -34,15 +34,19 @@ def get_recipe(personality_trait, max_calories, quick_meal, dish_type):
         data = response.json()
         if data.get("recipes"):
             recipe = data["recipes"][0]
+            nutrition = recipe.get("nutrition", {}).get("nutrients", [])
+            calories = next((n["amount"] for n in nutrition if n["name"] == "Calories"), "N/A")
+            protein = next((n["amount"] for n in nutrition if n["name"] == "Protein"), "N/A")
+            fat = next((n["amount"] for n in nutrition if n["name"] == "Fat"), "N/A")
             return {
                 "title": recipe["title"],
                 "image": recipe["image"],
                 "instructions": recipe["instructions"],
-                "ingredients": [ingredient["name"] for ingredient in recipe["extendedIngredients"]],
+                "ingredients": [ingredient["name"] for ingredient in recipe.get("extendedIngredients", [])],
                 "cuisine": selected_cuisine,
-                "calories": recipe["nutrition"]["nutrients"][0]["amount"],
-                "protein": recipe["nutrition"]["nutrients"][8]["amount"],
-                "fat": recipe["nutrition"]["nutrients"][1]["amount"]
+                "calories": calories,
+                "protein": protein,
+                "fat": fat
             }
     return None
 
