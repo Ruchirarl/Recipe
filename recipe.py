@@ -26,36 +26,67 @@ PERSONALITY_TO_CUISINE = {
 }
 
 def get_recipe(personality_trait, max_calories, quick_meal, dish_type, retries=3):
+    """ Fetches a recipe from Spoonacular API with proper debugging. """
+
     cuisine_list = PERSONALITY_TO_CUISINE.get(personality_trait, ["Italian"])
     max_ready_time = 30 if quick_meal else 60
-    
-    url = f"https://api.spoonacular.com/recipes/random?apiKey={SPOONACULAR_API_KEY}&number=1&maxCalories={max_calories}&maxReadyTime={max_ready_time}"
-    
+
+    url = f"https://api.spoonacular.com/recipes/random?apiKey={SPOONACULAR_API_KEY}&number=1"
+
+    # Apply filters if they make sense
+    if max_calories > 100:  # Avoid extreme restrictions
+        url += f"&nutritionFilter=calories<{max_calories}"
+    if max_ready_time:
+        url += f"&maxReadyTime={max_ready_time}"
     if dish_type.lower() in ["v", "vegetarian"]:
         url += "&diet=vegetarian"
-    
-    for _ in range(retries):
+
+    # Debugging: Print API request URL
+    print(f"🔗 API Request URL: {url}")
+
+    for attempt in range(retries):
         response = requests.get(url)
-        print(f"API Response Status: {response.status_code}")
-        
+
+        # Debugging: Print API response status
+        print(f"📡 API Response Attempt {attempt+1}: Status {response.status_code}")
+
         try:
             data = response.json()
-            print(f"API Response Data: {data}")  # Debugging print
+            print(f"📜 API Response Data: {data}")  # Debugging print
         except Exception as e:
-            print(f"Error parsing JSON response: {e}")
+            print(f"❌ Error parsing JSON response: {e}")
             continue
-        
+
         if response.status_code == 200 and "recipes" in data and data["recipes"]:
             recipe = data["recipes"][0]
             return {
                 "title": recipe["title"],
                 "image": recipe["image"],
-                "instructions": recipe.get("instructions", "No instructions provided.").replace(". ", ".<br>"),
+                "instructions": recipe.get("instructions", "No instructions provided."),
                 "ingredients": [ingredient["name"] for ingredient in recipe.get("extendedIngredients", [])],
                 "cuisine": cuisine_list[0],
                 "readyInMinutes": recipe.get("readyInMinutes", "N/A"),
                 "servings": recipe.get("servings", "N/A"),
             }
+    
+    # Backup request without filters if no recipe is found
+    print("⚠️ No recipe found with filters. Retrying without filters...")
+    backup_url = f"https://api.spoonacular.com/recipes/random?apiKey={SPOONACULAR_API_KEY}&number=1"
+    response = requests.get(backup_url)
+    if response.status_code == 200:
+        data = response.json()
+        if "recipes" in data and data["recipes"]:
+            recipe = data["recipes"][0]
+            return {
+                "title": recipe["title"],
+                "image": recipe["image"],
+                "instructions": recipe.get("instructions", "No instructions provided."),
+                "ingredients": [ingredient["name"] for ingredient in recipe.get("extendedIngredients", [])],
+                "cuisine": "General",
+                "readyInMinutes": recipe.get("readyInMinutes", "N/A"),
+                "servings": recipe.get("servings", "N/A"),
+            }
+    
     return None
 
 # Streamlit UI
@@ -82,4 +113,4 @@ if st.button("Find Recipe"):
         st.write("📖 **Instructions:**")
         st.markdown(recipe["instructions"], unsafe_allow_html=True)
     else:
-        st.write("❌ No recipe found, please try again later!")
+        st.write("❌ No recipe found. Please try again later!")
