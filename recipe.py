@@ -135,7 +135,7 @@ if recipe:
         st.write(details["instructions"])
         
         if search_type == "By Nutrients" and details["nutrition"]:
-            st.write("### 🔬 Nutrition Facts:")
+            st.write("### \n🔬 Nutrition Facts:")
             for nutrient in details["nutrition"]:
                 st.write(f"- {nutrient['name']}: {nutrient['amount']} {nutrient['unit']}")
 
