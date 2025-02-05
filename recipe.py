@@ -9,6 +9,20 @@ st.set_page_config(page_title="🍽️ BiteByType - Meals that fit your personal
 SPOONACULAR_API_KEY = st.secrets["SPOONACULAR_API_KEY"]
 YELP_API_KEY = st.secrets["YELP_API_KEY"]
 
+st.markdown(
+    """
+    ## 🥗 Welcome to BiteByType!
+    BiteByType is your **personalized meal finder** 🍜🍕🍣, helping you discover **recipes** tailored to your **personality, dietary preferences, and nutritional needs**! 🥦🍲
+    
+    🔍 **How It Works:**
+    - Choose a recipe **By Personality** 🎭, **By Ingredient** 🥑, or **By Nutrients** 🏋️‍♂️.
+    - Find recipes that match **your taste and lifestyle**! 🍳🥘
+    - Explore **restaurants nearby** serving similar cuisines! 🍽️🏙️
+    
+    Let's find your next favorite meal! 🍽️✨
+    """
+)
+
 # Mapping personality traits to cuisines
 PERSONALITY_TO_CUISINE = {
     "Openness": ["Japanese", "Indian", "Mediterranean"],
