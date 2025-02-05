@@ -88,10 +88,13 @@ def get_recipe_details(recipe):
     if not recipe or "extendedIngredients" not in recipe or "instructions" not in recipe:
         return None
     
+    instructions = recipe.get("instructions", "No instructions available.").split(". ")
+    formatted_instructions = "\n".join([f"{i+1}. {step}" for i, step in enumerate(instructions)])
+    
     return {
         "title": recipe.get("title", "No title available"),
         "image": recipe.get("image", ""),
-        "instructions": recipe.get("instructions", "No instructions available."),
+        "instructions": formatted_instructions,
         "ingredients": [ingredient["original"] for ingredient in recipe.get("extendedIngredients", [])]
     }
 
@@ -105,24 +108,24 @@ recipe = None
 if search_type == "By Personality":
     personality = st.selectbox("Select your dominant personality trait", list(PERSONALITY_TO_CUISINE.keys()))
     diet = st.selectbox("Choose your diet preference", diet_types)
-    if st.button("Find Recipe"):
-        recipe = get_recipe_by_personality(personality, diet)
-
 elif search_type == "By Ingredient":
     ingredient = st.text_input("Enter an ingredient")
     max_time = st.number_input("Enter max preparation time in minutes", min_value=5, max_value=120, value=30)
-    if st.button("Find Recipe"):
-        recipe = get_recipe_by_ingredient(ingredient, max_time)
-
 elif search_type == "By Nutrients":
     nutrient = st.selectbox("Choose a nutrient", ["Calories", "Protein", "Fat"])
     min_value = st.number_input(f"Enter minimum {nutrient}", min_value=0, max_value=5000, value=50)
     max_value = st.number_input(f"Enter maximum {nutrient}", min_value=0, max_value=5000, value=500)
     max_time = st.number_input("Enter max preparation time in minutes", min_value=5, max_value=120, value=30)
-    if st.button("Find Recipe"):
-        recipe = get_recipe_by_nutrients(nutrient, min_value, max_value, max_time)
 
 location = st.text_input("Enter your city for restaurant recommendations")
+
+if st.button("Find Recipe"):
+    if search_type == "By Personality":
+        recipe = get_recipe_by_personality(personality, diet)
+    elif search_type == "By Ingredient":
+        recipe = get_recipe_by_ingredient(ingredient, max_time)
+    elif search_type == "By Nutrients":
+        recipe = get_recipe_by_nutrients(nutrient, min_value, max_value, max_time)
 
 if recipe:
     details = get_recipe_details(recipe)
