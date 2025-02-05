@@ -26,14 +26,14 @@ PERSONALITY_TO_CUISINE = {
 }
 
 def get_recipe(personality_trait, max_calories, quick_meal, dish_type, retries=3):
-    """ Fetches a recipe from Spoonacular API with proper debugging. """
-
     cuisine_list = PERSONALITY_TO_CUISINE.get(personality_trait, ["Italian"])
     max_ready_time = 30 if quick_meal else 60
 
-    url = f"https://api.spoonacular.com/recipes/random?apiKey={SPOONACULAR_API_KEY}&number=1"
+    # Base URL
+    base_url = f"https://api.spoonacular.com/recipes/random?apiKey={SPOONACULAR_API_KEY}&number=1"
 
-    # Apply filters if they make sense
+    # Apply filters carefully
+    url = base_url
     if max_calories > 100:  # Avoid extreme restrictions
         url += f"&nutritionFilter=calories<{max_calories}"
     if max_ready_time:
@@ -41,13 +41,10 @@ def get_recipe(personality_trait, max_calories, quick_meal, dish_type, retries=3
     if dish_type.lower() in ["v", "vegetarian"]:
         url += "&diet=vegetarian"
 
-    # Debugging: Print API request URL
-    print(f"🔗 API Request URL: {url}")
+    print(f"🔗 API Request URL: {url}")  # Debugging print
 
     for attempt in range(retries):
         response = requests.get(url)
-
-        # Debugging: Print API response status
         print(f"📡 API Response Attempt {attempt+1}: Status {response.status_code}")
 
         try:
@@ -68,11 +65,10 @@ def get_recipe(personality_trait, max_calories, quick_meal, dish_type, retries=3
                 "readyInMinutes": recipe.get("readyInMinutes", "N/A"),
                 "servings": recipe.get("servings", "N/A"),
             }
-    
-    # Backup request without filters if no recipe is found
+
+    # Backup request without filters
     print("⚠️ No recipe found with filters. Retrying without filters...")
-    backup_url = f"https://api.spoonacular.com/recipes/random?apiKey={SPOONACULAR_API_KEY}&number=1"
-    response = requests.get(backup_url)
+    response = requests.get(base_url)
     if response.status_code == 200:
         data = response.json()
         if "recipes" in data and data["recipes"]:
@@ -86,7 +82,7 @@ def get_recipe(personality_trait, max_calories, quick_meal, dish_type, retries=3
                 "readyInMinutes": recipe.get("readyInMinutes", "N/A"),
                 "servings": recipe.get("servings", "N/A"),
             }
-    
+
     return None
 
 # Streamlit UI
