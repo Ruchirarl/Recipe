@@ -7,7 +7,6 @@ st.set_page_config(page_title="BiteByType - Meals that fit your personality")
 
 # Load environment variables from Streamlit secrets
 SPOONACULAR_API_KEY = st.secrets["SPOONACULAR_API_KEY"]
-YELP_API_KEY = st.secrets["YELP_API_KEY"]
 
 # Mapping personality traits to cuisines
 PERSONALITY_TO_CUISINE = {
@@ -24,7 +23,7 @@ PERSONALITY_TO_CUISINE = {
 
 # Supported diet types
 diet_types = [
-    "Gluten Free", "Ketogenic", "Vegetarian", "Lacto-Vegetarian", "Ovo-Vegetarian", "Vegan", 
+    "Gluten Free", "Ketogenic", "Vegetarian", "Lacto-Vegetarian", "Ovo-Vegetarian", "Vegan",
     "Pescetarian", "Paleo", "Primal", "Low FODMAP", "Whole30"
 ]
 
@@ -38,7 +37,11 @@ def get_recipe_by_personality(personality, diet):
         "diet": diet,
         "cuisine": cuisine
     }
+    
+    st.write(f"🔍 Debug API URL: {url}, Params: {params}")  # Debugging
     response = requests.get(url, params=params)
+    st.write(f"🔍 API Response: {response.json()}")  # Debugging
+
     return response.json().get("recipes", [None])[0] if response.status_code == 200 else None
 
 def get_recipe_by_ingredient(ingredient, max_time):
@@ -50,29 +53,37 @@ def get_recipe_by_ingredient(ingredient, max_time):
         "number": 1,
         "addRecipeNutrition": True
     }
+    
+    st.write(f"🔍 Debug API URL: {url}, Params: {params}")  # Debugging
     response = requests.get(url, params=params)
+    st.write(f"🔍 API Response: {response.json()}")  # Debugging
+
     return response.json().get("results", [None])[0] if response.status_code == 200 else None
 
-def get_recipe_by_nutrients(calories, protein, fat, min_value, max_value, max_time, diet):
+def get_recipe_by_nutrients(nutrient, min_value, max_value, max_time):
     url = "https://api.spoonacular.com/recipes/findByNutrients"
     params = {
         "apiKey": SPOONACULAR_API_KEY,
-        "minCalories": min_value,
-        "maxCalories": max_value,
-        "minProtein": protein,
-        "minFat": fat,
+        f"min{nutrient}": min_value,
+        f"max{nutrient}": max_value,
         "maxReadyTime": max_time,
-        "number": 1,
-        "diet": diet
+        "number": 1
     }
+
+    st.write(f"🔍 Debug API URL: {url}, Params: {params}")  # Debugging
     response = requests.get(url, params=params)
+    st.write(f"🔍 API Response: {response.json()}")  # Debugging
+
     return response.json()[0] if response.status_code == 200 and response.json() else None
 
 def get_recipe_details(recipe):
+    if not recipe:
+        return None  # Skip if no recipe found
+
     nutrition = recipe.get("nutrition", {}).get("nutrients", [])
     if not nutrition:
         return None  # Skip recipes without nutrition info
-    
+
     return {
         "title": recipe.get("title", "No title available"),
         "image": recipe.get("image", ""),
@@ -93,7 +104,6 @@ recipe = None  # Initialize recipe variable
 if search_type == "By Personality":
     personality = st.selectbox("Select your dominant personality trait", list(PERSONALITY_TO_CUISINE.keys()))
     diet = st.selectbox("Choose your diet preference", diet_types)
-    location = st.text_input("Enter your city for restaurant recommendations")
     if st.button("Find Recipe"):
         recipe = get_recipe_by_personality(personality, diet)
 
@@ -104,16 +114,14 @@ elif search_type == "By Ingredient":
         recipe = get_recipe_by_ingredient(ingredient, max_time)
 
 elif search_type == "By Nutrients":
-    calories = st.number_input("Enter calorie intake", min_value=0, max_value=5000, value=500)
-    protein = st.number_input("Enter protein intake", min_value=0, max_value=500, value=50)
-    fat = st.number_input("Enter fat intake", min_value=0, max_value=500, value=50)
-    min_value = st.number_input("Enter minimum calorie range", min_value=0, max_value=5000, value=50)
-    max_value = st.number_input("Enter maximum calorie range", min_value=0, max_value=5000, value=500)
+    nutrient = st.selectbox("Choose a nutrient", ["Calories", "Protein", "Fat"])
+    min_value = st.number_input(f"Enter minimum {nutrient}", min_value=0, max_value=5000, value=50)
+    max_value = st.number_input(f"Enter maximum {nutrient}", min_value=0, max_value=5000, value=500)
     max_time = st.number_input("Enter max preparation time in minutes", min_value=5, max_value=120, value=30)
-    diet = st.selectbox("Choose your diet preference", diet_types)
     if st.button("Find Recipe"):
-        recipe = get_recipe_by_nutrients(calories, protein, fat, min_value, max_value, max_time, diet)
+        recipe = get_recipe_by_nutrients(nutrient, min_value, max_value, max_time)
 
+# Display the recipe if found and contains nutrition data
 if recipe:
     details = get_recipe_details(recipe)
     if details:
@@ -127,5 +135,7 @@ if recipe:
         st.write(f"- **Calories:** {details['calories']} kcal")
         st.write(f"- **Protein:** {details['protein']} g")
         st.write(f"- **Fat:** {details['fat']} g")
+    else:
+        st.write("❌ No valid recipe found with nutrition information. Try again!")
 else:
     st.write("❌ No recipe found, try again later!")
