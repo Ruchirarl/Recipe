@@ -3,7 +3,7 @@ import requests
 import os
 
 # Set Streamlit page title
-st.set_page_config(page_title="BiteByType - Meals that fit your personality")
+st.set_page_config(page_title="🍽️ BiteByType - Meals that fit your personality")
 
 # Load environment variables from Streamlit secrets
 SPOONACULAR_API_KEY = st.secrets["SPOONACULAR_API_KEY"]
@@ -24,9 +24,36 @@ PERSONALITY_TO_CUISINE = {
 
 # Supported diet types
 diet_types = [
-    "Gluten Free", "Ketogenic", "Vegetarian", "Lacto-Vegetarian", "Ovo-Vegetarian", "Vegan", 
+    "Gluten Free", "Ketogenic", "Vegetarian", "Lacto-Vegetarian", "Ovo-Vegetarian", "Vegan",
     "Pescetarian", "Paleo", "Primal", "Low FODMAP", "Whole30"
 ]
+
+def get_recipe_by_personality(personality, diet):
+    cuisine = PERSONALITY_TO_CUISINE.get(personality, ["Italian"])[0]
+    url = "https://api.spoonacular.com/recipes/random"
+    params = {
+        "apiKey": SPOONACULAR_API_KEY,
+        "number": 1,
+        "diet": diet,
+        "cuisine": cuisine,
+        "instructionsRequired": True
+    }
+    response = requests.get(url, params=params)
+    data = response.json()
+    return data.get("recipes", [None])[0] if response.status_code == 200 and "recipes" in data else None
+
+def get_recipe_by_ingredient(ingredient, max_time):
+    url = "https://api.spoonacular.com/recipes/complexSearch"
+    params = {
+        "apiKey": SPOONACULAR_API_KEY,
+        "includeIngredients": ingredient,
+        "maxReadyTime": max_time,
+        "number": 1,
+        "instructionsRequired": True
+    }
+    response = requests.get(url, params=params)
+    data = response.json()
+    return get_recipe_details_by_id(data["results"][0]["id"]) if response.status_code == 200 and "results" in data and data["results"] else None
 
 def get_recipe_by_nutrients(nutrient, min_value, max_value, max_time):
     url = "https://api.spoonacular.com/recipes/findByNutrients"
@@ -40,7 +67,13 @@ def get_recipe_by_nutrients(nutrient, min_value, max_value, max_time):
     }
     response = requests.get(url, params=params)
     data = response.json()
-    return data[0] if response.status_code == 200 and data else None
+    return get_recipe_details_by_id(data[0]["id"]) if response.status_code == 200 and data else None
+
+def get_recipe_details_by_id(recipe_id):
+    url = f"https://api.spoonacular.com/recipes/{recipe_id}/information"
+    params = {"apiKey": SPOONACULAR_API_KEY, "includeNutrition": True}
+    response = requests.get(url, params=params)
+    return response.json() if response.status_code == 200 else None
 
 def get_restaurants(location, cuisine):
     url = "https://api.yelp.com/v3/businesses/search"
@@ -82,9 +115,13 @@ if search_type:
         max_time = st.number_input("Enter max preparation time in minutes", min_value=5, max_value=120, value=30)
 
     location = st.text_input("Enter your city for restaurant recommendations", "")
-    
+
     if st.button("Find Recipe"):
-        if search_type == "By Nutrients":
+        if search_type == "By Personality":
+            recipe = get_recipe_by_personality(personality, diet)
+        elif search_type == "By Ingredient":
+            recipe = get_recipe_by_ingredient(ingredient, max_time)
+        elif search_type == "By Nutrients":
             recipe = get_recipe_by_nutrients(nutrient, min_value, max_value, max_time)
 
 if recipe:
