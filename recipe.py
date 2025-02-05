@@ -114,7 +114,7 @@ if search_type:
         max_value = st.number_input(f"Enter maximum {nutrient}", min_value=0, max_value=5000, value=500)
         max_time = st.number_input("Enter max preparation time in minutes", min_value=5, max_value=120, value=30)
 
-    location = st.text_input("Enter your city for restaurant recommendations", "")
+    location = st.text_input("Enter your city/state for restaurant recommendations", "")
 
     if st.button("Find Recipe"):
         if search_type == "By Personality":
@@ -127,7 +127,7 @@ if search_type:
 if recipe:
     details = get_recipe_details(recipe)
     if details:
-        st.subheader(f"🍽️ Recommended Recipe: {details['title']}")
+        st.subheader(f"Recommended Recipe: {details['title']}")
         st.image(details['image'], width=400)
         st.write("### Ingredients:")
         st.write("\n".join([f"- {ingredient}" for ingredient in details["ingredients"]]))
@@ -135,14 +135,14 @@ if recipe:
         st.write(details["instructions"])
         
         if search_type == "By Nutrients" and details["nutrition"]:
-            st.write("### \n🔬 Nutrition Facts:")
+            st.write("\n### Nutrition Facts:")
             for nutrient in details["nutrition"]:
                 st.write(f"- {nutrient['name']}: {nutrient['amount']} {nutrient['unit']}")
 
         if location:
             restaurants = get_restaurants(location, details.get("cuisine", ""))
             if restaurants:
-                st.write("### \n🍴 Nearby Restaurants:")
+                st.write("\n### Nearby Restaurants:")
                 for restaurant in restaurants:
                     st.write(f"- **{restaurant['name']}** ({restaurant['rating']}⭐) - {restaurant['location'].get('address1', 'Address not available')}")
             else:
