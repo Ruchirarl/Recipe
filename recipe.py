@@ -259,6 +259,9 @@ if recipe:
     # Display recipe image if available
     st.image(recipe.get("image", ""), width=400)
     
+    # Display preparation time for all recipe types
+    st.write(f"### ⏳ **Total Preparation Time:** {recipe.get('readyInMinutes', 'N/A')} minutes")
+
     # Display ingredients list
     st.write("### Ingredients:")
     st.write("\n".join(f"- {i['original']}" for i in recipe.get("extendedIngredients", [])))
@@ -267,9 +270,7 @@ if recipe:
     st.write("### Instructions:")
     st.write(recipe.get("instructions", "No instructions available."))
 
-    # Display preparation time for all recipe types
-    st.write(f"⏳ **Total Preparation Time:** {recipe.get('readyInMinutes', 'N/A')} minutes")
-    
+
     # If location is provided, fetch nearby restaurants
     if location:
         restaurants = get_restaurants(location, recipe.get("cuisine", ""))
