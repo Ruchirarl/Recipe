@@ -260,7 +260,7 @@ if recipe:
     st.image(recipe.get("image", ""), width=400)
     
     # Display preparation time for all recipe types
-    st.write(f"### ⏳ **Total Preparation Time:** {recipe.get('readyInMinutes', 'N/A')} minutes")
+    st.write(f"### **Total Preparation Time:** {recipe.get('readyInMinutes', 'N/A')} minutes")
 
     # Display ingredients list
     st.write("### Ingredients:")
