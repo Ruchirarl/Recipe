@@ -226,13 +226,13 @@ if search_type:
         min_value = st.number_input(
             f"Min {nutrient}", 
             min_value=10, 
-            value=100
+            value=0
         )
         
         max_value = st.number_input(
             f"Max {nutrient}", 
             min_value=10, 
-            value=100
+            value=0
         )
         
         # Slider for selecting maximum preparation time
