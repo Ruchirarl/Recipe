@@ -224,13 +224,13 @@ if search_type:
         
         # Input fields for specifying min and max values of the nutrient
         min_value = st.number_input(
-            f"Min {nutrient} (10)", 
+            f"Min {nutrient}", 
             min_value=10, 
             value=100
         )
         
         max_value = st.number_input(
-            f"Max {nutrient} (100)", 
+            f"Max {nutrient}", 
             min_value=10, 
             value=100
         )
