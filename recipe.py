@@ -113,11 +113,12 @@ def get_recipe_by_nutrients(nutrient, min_value, max_value, max_time):
     # Set the query parameters for the API request
     params = {
         "apiKey": SPOONACULAR_API_KEY,  # API key for authentication
+        "addRecipeNutrition": True  # Include detailed nutritional information in the response
         f"min{nutrient}": min_value,  # Minimum threshold for the selected nutrient
         f"max{nutrient}": max_value,  # Maximum threshold for the selected nutrient 
         "maxReadyTime": max_time,  # Filter recipes by maximum preparation time
-        "number": 1,  # Request only one recipe
-        "addRecipeNutrition": True  # Include detailed nutritional information in the response
+        "number": 1  # Request only one recipe
+        
     }
     
     # Fetch data from the API
