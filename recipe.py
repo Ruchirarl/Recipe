@@ -272,10 +272,10 @@ if recipe:
     st.write(recipe.get("instructions", "No instructions available."))
 
     # Display nutrition details if available
-if 'nutrition' in recipe and 'nutrients' in recipe['nutrition']:
-    st.write("### Nutrition Information:")
-    for nutrient in recipe['nutrition']['nutrients']:
-        st.write(f"- {nutrient['name']}: {nutrient['amount']} {nutrient['unit']}")
+    if 'nutrition' in recipe and 'nutrients' in recipe['nutrition']:
+        st.write("### Nutrition Information:")
+        for nutrient in recipe['nutrition']['nutrients']:
+            st.write(f"- {nutrient['name']}: {nutrient['amount']} {nutrient['unit']}")
 
 
     # If location is provided, fetch nearby restaurants
