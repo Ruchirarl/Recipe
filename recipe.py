@@ -114,7 +114,7 @@ def get_recipe_by_nutrients(nutrient, min_value, max_value, max_time):
     params = {
         "apiKey": SPOONACULAR_API_KEY,  # API key for authentication
         f"min{nutrient}": min_value,  # Minimum threshold for the selected nutrient
-        f"max{nutrient}": max_value,  # Maximum threshold for the selected nutrient
+        f"max{nutrient}": max_value,  # Maximum threshold for the selected nutrient 
         "maxReadyTime": max_time,  # Filter recipes by maximum preparation time
         "number": 1,  # Request only one recipe
         "addRecipeNutrition": True  # Include detailed nutritional information in the response
@@ -269,6 +269,9 @@ if recipe:
     # Display cooking instructions
     st.write("### Instructions:")
     st.write(recipe.get("instructions", "No instructions available."))
+
+    # Display nutritional value
+    st.write(f"### **Nutritional Value:** {recipe.get('N/A')} minutes")
 
 
     # If location is provided, fetch nearby restaurants
