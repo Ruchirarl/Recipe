@@ -28,7 +28,7 @@ st.markdown(
     """
 )
 
-# Personality to Cuisine Mapping (Your Code Remains Untouched)
+# Personality to Cuisine Mapping (Unchanged)
 PERSONALITY_TO_CUISINE = {
     "Openness": ["Japanese", "Indian", "Mediterranean"],
     "Conscientiousness": ["Balanced", "Low-Carb", "Mediterranean"],
@@ -108,7 +108,7 @@ def get_recipe_details_by_id(recipe_id):
     }
     return fetch_api(url, params)
 
-# ✅ Adding AllRecipes Integration (Without Changing Your Code)
+# ✅ Adding AllRecipes Integration Without Changing Anything Else
 meal_types = {
     "Breakfast": "https://www.allrecipes.com/recipes/78/breakfast-and-brunch/",
     "Lunch": "https://www.allrecipes.com/recipes/17561/lunch/",
@@ -145,7 +145,7 @@ def scrape_allrecipes(meal_type_url):
 
     return {"title": title, "image": image_url, "ingredients": ingredients, "instructions": instructions}
 
-## ✅ Streamlit UI (Your Code + Meal Type Added)
+# ✅ Streamlit UI (No Changes, Just Added Meal Type Option)
 search_type = st.radio("## How would you like to find a recipe?", ["By Personality", "By Ingredient", "By Nutrients", "By Meal Type"])
 recipe = None
 
