@@ -5,7 +5,7 @@ from bs4 import BeautifulSoup
 # Set page config
 st.set_page_config(page_title="🍽 BiteByType - Personalized Meal Finder")
 
-# Spoonacular API Key
+# Spoonacular API Key (stored securely in Streamlit secrets)
 SPOONACULAR_API_KEY = st.secrets["SPOONACULAR_API_KEY"]
 
 # Meal types mapped to AllRecipes URLs
@@ -47,6 +47,7 @@ def scrape_allrecipes(meal_type_url):
     # Step 1: Get the meal category page (Breakfast, Lunch, etc.)
     response = requests.get(meal_type_url, headers=headers)
     if response.status_code != 200:
+        st.error("Failed to fetch the meal type page.")
         return None
 
     soup = BeautifulSoup(response.text, "lxml")
@@ -54,24 +55,32 @@ def scrape_allrecipes(meal_type_url):
     # Step 2: Find the first recipe card
     first_recipe = soup.select_one("div.card__content")
     if not first_recipe:
+        st.error("No recipe card found. Check the HTML structure.")
         return None
 
     # Extract title
-    title = first_recipe.select_one(".card__title-text").text.strip()
+    title_tag = first_recipe.select_one(".card__title-text")
+    title = title_tag.text.strip() if title_tag else "Unknown Recipe"
 
-    # Extract image
-    image_tag = first_recipe.select_one(".card__img")
-    image_url = image_tag["data-src"] if image_tag and "data-src" in image_tag.attrs else image_tag["src"]
+    # Extract image (Handling data-src and src fallback)
+    image_tag = first_recipe.select_one("img.mntl-image")
+    if image_tag:
+        image_url = image_tag.get("data-src", image_tag.get("src", ""))
+    else:
+        image_url = ""  # If no image found, use an empty string
 
     # Extract recipe URL
-    recipe_url = first_recipe.find_parent("a")["href"] if first_recipe.find_parent("a") else None
+    recipe_link = first_recipe.find_parent("a")
+    recipe_url = recipe_link["href"] if recipe_link else None
 
     if not recipe_url:
+        st.error("No recipe link found.")
         return None
 
     # Step 3: Fetch the detailed recipe page
     recipe_response = requests.get(recipe_url, headers=headers)
     if recipe_response.status_code != 200:
+        st.error("Failed to fetch the recipe page.")
         return None
 
     recipe_soup = BeautifulSoup(recipe_response.text, "lxml")
