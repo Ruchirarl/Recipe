@@ -57,11 +57,21 @@ meal_types = {
 ### 🥗 Spoonacular API Fetch Function ###
 @st.cache_data
 def fetch_api(url, params):
-    """Fetches data from Spoonacular API."""
+    """Fetches data from Spoonacular API and logs the response."""
     try:
         response = requests.get(url, params=params)
-        return response.json() if response.status_code == 200 else None
-    except requests.RequestException:
+        if response.status_code == 200:
+            data = response.json()
+            if "recipes" in data and data["recipes"]:
+                return data
+            else:
+                st.warning("No Spoonacular recipes found. Try changing filters.")
+                return None
+        else:
+            st.error(f"Spoonacular API Error: {response.status_code}")
+            return None
+    except requests.RequestException as e:
+        st.error(f"API Request Failed: {e}")
         return None
 
 def get_recipe_by_personality(personality, diet):
@@ -75,8 +85,7 @@ def get_recipe_by_personality(personality, diet):
         "cuisine": cuisine,
         "instructionsRequired": True
     }
-    data = fetch_api(url, params)
-    return data.get("recipes", [None])[0] if data else None
+    return fetch_api(url, params)
 
 def get_recipe_by_ingredient(ingredient, max_time):
     """Fetch a recipe based on an ingredient and preparation time."""
@@ -88,8 +97,7 @@ def get_recipe_by_ingredient(ingredient, max_time):
         "number": 1,
         "instructionsRequired": True
     }
-    data = fetch_api(url, params)
-    return get_recipe_details_by_id(data["results"][0]["id"]) if data and data.get("results") else None
+    return fetch_api(url, params)
 
 def get_recipe_by_nutrients(nutrient, min_value, max_value, max_time):
     """Fetch a recipe based on nutritional content."""
@@ -102,37 +110,31 @@ def get_recipe_by_nutrients(nutrient, min_value, max_value, max_time):
         "maxReadyTime": max_time,
         "number": 1
     }
-    data = fetch_api(url, params)
-    return get_recipe_details_by_id(data[0]["id"]) if data else None
-
-def get_recipe_details_by_id(recipe_id):
-    """Fetch detailed recipe information by ID."""
-    url = f"https://api.spoonacular.com/recipes/{recipe_id}/information"
-    params = {
-        "apiKey": SPOONACULAR_API_KEY,
-        "includeNutrition": True
-    }
     return fetch_api(url, params)
 
-### 🥗 AllRecipes Scraper (Now Picks Random Recipes Each Time) ###
+### 🥗 AllRecipes Scraper (Now Fixed for Empty Results) ###
 def scrape_allrecipes(meal_type_url):
     """Scrapes a random recipe from AllRecipes for the selected meal type."""
     headers = {"User-Agent": "Mozilla/5.0"}
-    response = requests.get(meal_type_url, headers=headers)
-    if response.status_code != 200:
-        st.error("Failed to fetch the meal type page.")
+    try:
+        response = requests.get(meal_type_url, headers=headers, timeout=10)
+        response.raise_for_status()
+    except requests.exceptions.RequestException as e:
+        st.error(f"Failed to fetch meal type page: {e}")
         return None
 
     soup = BeautifulSoup(response.text, "lxml")
     all_recipe_links = soup.select("a[href*='/recipe/']")
     if not all_recipe_links:
-        st.error("No recipes found.")
+        st.warning("No recipes found in AllRecipes. Try another category.")
         return None
 
     recipe_url = random.choice(all_recipe_links)["href"]
-    recipe_response = requests.get(recipe_url, headers=headers)
-    if recipe_response.status_code != 200:
-        st.error("Failed to fetch the recipe page.")
+    try:
+        recipe_response = requests.get(recipe_url, headers=headers, timeout=10)
+        recipe_response.raise_for_status()
+    except requests.exceptions.RequestException as e:
+        st.error(f"Failed to fetch the recipe page: {e}")
         return None
 
     recipe_soup = BeautifulSoup(recipe_response.text, "lxml")
@@ -141,7 +143,7 @@ def scrape_allrecipes(meal_type_url):
     image_url = image_tag.get("data-src", image_tag.get("src", "")) if image_tag else ""
     ingredients = [ing.get_text(strip=True) for ing in recipe_soup.select(".mm-recipes-structured-ingredients__list-item")]
     instructions = [step.get_text(strip=True) for step in recipe_soup.select(".mntl-sc-block-html")]
-    
+
     return {"title": title, "image": image_url, "ingredients": ingredients, "instructions": instructions}
 
 ### 🎨 Streamlit UI ###
@@ -172,4 +174,5 @@ elif search_type == "By Meal Type":
     meal_type = st.selectbox("Choose a Meal Type", list(meal_types.keys()))
     if st.button("Find Recipe"):
         recipe = scrape_allrecipes(meal_types[meal_type])
-st.write("Welcome! Choose a search method above to find a recipe that suits you.")
+
+st.write("🚀 Try selecting options to discover recipes!")
