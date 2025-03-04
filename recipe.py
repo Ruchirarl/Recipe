@@ -1,6 +1,7 @@
 import streamlit as st
 import requests
 from bs4 import BeautifulSoup
+import random
 
 # Set page config
 st.set_page_config(page_title="🍽 BiteByType - Personalized Meal Finder")
@@ -38,10 +39,10 @@ def get_recipe_by_personality(personality, diet):
     data = fetch_api(url, params)
     return data.get("recipes", [None])[0] if data else None
 
-### 🥗 AllRecipes Scraper (Including Images & Nutrition Facts) ###
+### 🥗 AllRecipes Scraper (Now Picks Random Recipes) ###
 @st.cache_data
 def scrape_allrecipes(meal_type_url):
-    """Scrapes a full recipe from AllRecipes for the selected meal type."""
+    """Scrapes a random recipe from AllRecipes for the selected meal type."""
     headers = {"User-Agent": "Mozilla/5.0"}
     
     # Step 1: Fetch the meal category page
@@ -52,15 +53,15 @@ def scrape_allrecipes(meal_type_url):
 
     soup = BeautifulSoup(response.text, "lxml")
 
-    # Step 2: Find recipe links (Exclude articles)
+    # Step 2: Find all valid recipe links (excluding articles)
     all_recipe_links = soup.select("a[href*='/recipe/']")  # Only valid recipes
 
     if not all_recipe_links:
         st.error("No recipes found. The HTML structure might have changed.")
         return None
 
-    # Get the first valid recipe URL
-    recipe_url = all_recipe_links[0]["href"]
+    # ✅ Pick a random recipe instead of always selecting the first one
+    recipe_url = random.choice(all_recipe_links)["href"]
 
     # Step 3: Fetch the detailed recipe page
     recipe_response = requests.get(recipe_url, headers=headers)
@@ -87,7 +88,7 @@ def scrape_allrecipes(meal_type_url):
     # Extract instructions
     instructions = [step.get_text(strip=True) for step in recipe_soup.select(".mntl-sc-block-html")]
 
-    # Extract Nutrition Facts (New Fix)
+    # Extract Nutrition Facts (Now Fixed)
     nutrition_facts = []
     nutrition_table = recipe_soup.select_one(".mm-recipes-nutrition-facts-label__table")
     
@@ -104,7 +105,7 @@ def scrape_allrecipes(meal_type_url):
         "image": image_url,
         "ingredients": ingredients,
         "instructions": instructions,
-        "nutrition": nutrition_facts  # Now extracts correct nutrition facts
+        "nutrition": nutrition_facts
     }
 
 ### 🎨 Streamlit UI ###
