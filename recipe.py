@@ -38,40 +38,38 @@ def get_recipe_by_personality(personality, diet):
     data = fetch_api(url, params)
     return data.get("recipes", [None])[0] if data else None
 
-### AllRecipes Web Scraper ###
+### AllRecipes Scraper ###
 @st.cache_data
 def scrape_allrecipes(meal_type_url):
     """Scrapes a full recipe from AllRecipes for the selected meal type."""
     headers = {"User-Agent": "Mozilla/5.0"}
     
-    # Get the meal category page (Breakfast, Lunch, Dinner, etc.)
+    # Step 1: Get the meal category page (Breakfast, Lunch, etc.)
     response = requests.get(meal_type_url, headers=headers)
     if response.status_code != 200:
         return None
 
     soup = BeautifulSoup(response.text, "lxml")
 
-    # Find first recipe link inside the taxonomy section
-    first_recipe_card = soup.select_one("section#taxonomysc_1-0 a")
-    if not first_recipe_card:
+    # Step 2: Find the first recipe card
+    first_recipe = soup.select_one(".card__content")
+    if not first_recipe:
         return None
 
-    recipe_url = first_recipe_card["href"]
-    
-    # Now fetch the detailed recipe page
+    # Extract recipe details
+    title = first_recipe.select_one(".card__title-text").get_text(strip=True)
+    image = first_recipe.select_one(".card__img")["src"]
+    recipe_id = first_recipe.select_one(".mm-myrecipes-favorite")["data-doc-id"]
+
+    # Construct recipe URL
+    recipe_url = f"https://www.allrecipes.com/recipe/{recipe_id}/"
+
+    # Step 3: Fetch the detailed recipe page
     recipe_response = requests.get(recipe_url, headers=headers)
     if recipe_response.status_code != 200:
         return None
 
     recipe_soup = BeautifulSoup(recipe_response.text, "lxml")
-
-    # Extract title
-    title_tag = recipe_soup.find("h1")
-    recipe_title = title_tag.get_text(strip=True) if title_tag else "Unknown Recipe"
-
-    # Extract image
-    image_tag = recipe_soup.find("img", class_="mntl-image")
-    image_url = image_tag["src"] if image_tag else ""
 
     # Extract ingredients
     ingredients = [ing.get_text(strip=True) for ing in recipe_soup.select(".mm-recipes-structured-ingredients__list-item")]
@@ -87,8 +85,8 @@ def scrape_allrecipes(meal_type_url):
             nutrition_facts.append(f"{columns[1].get_text(strip=True)}: {columns[0].get_text(strip=True)}")
 
     return {
-        "title": recipe_title,
-        "image": image_url,
+        "title": title,
+        "image": image,
         "ingredients": ingredients,
         "instructions": instructions,
         "nutrition": nutrition_facts
@@ -152,4 +150,3 @@ if recipe:
 
 else:
     st.write("Select a search method and click 'Find Recipe' to get started.")
-
