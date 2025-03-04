@@ -5,7 +5,7 @@ from bs4 import BeautifulSoup
 # Set page config
 st.set_page_config(page_title="🍽 BiteByType - Personalized Meal Finder")
 
-# Spoonacular API Key (ensure you have it in Streamlit secrets)
+# Spoonacular API Key
 SPOONACULAR_API_KEY = st.secrets["SPOONACULAR_API_KEY"]
 
 # Meal types mapped to AllRecipes URLs
@@ -52,17 +52,22 @@ def scrape_allrecipes(meal_type_url):
     soup = BeautifulSoup(response.text, "lxml")
 
     # Step 2: Find the first recipe card
-    first_recipe = soup.select_one(".card__content")
+    first_recipe = soup.select_one("div.card__content")
     if not first_recipe:
         return None
 
-    # Extract recipe details
-    title = first_recipe.select_one(".card__title-text").get_text(strip=True)
-    image = first_recipe.select_one(".card__img")["src"]
-    recipe_id = first_recipe.select_one(".mm-myrecipes-favorite")["data-doc-id"]
+    # Extract title
+    title = first_recipe.select_one(".card__title-text").text.strip()
 
-    # Construct recipe URL
-    recipe_url = f"https://www.allrecipes.com/recipe/{recipe_id}/"
+    # Extract image
+    image_tag = first_recipe.select_one(".card__img")
+    image_url = image_tag["data-src"] if image_tag and "data-src" in image_tag.attrs else image_tag["src"]
+
+    # Extract recipe URL
+    recipe_url = first_recipe.find_parent("a")["href"] if first_recipe.find_parent("a") else None
+
+    if not recipe_url:
+        return None
 
     # Step 3: Fetch the detailed recipe page
     recipe_response = requests.get(recipe_url, headers=headers)
@@ -77,19 +82,11 @@ def scrape_allrecipes(meal_type_url):
     # Extract instructions
     instructions = [step.get_text(strip=True) for step in recipe_soup.select(".mntl-sc-block-html")]
 
-    # Extract Nutrition Facts
-    nutrition_facts = []
-    for row in recipe_soup.select(".mm-recipes-nutrition-facts-summary__table-row"):
-        columns = row.find_all("td")
-        if len(columns) == 2:
-            nutrition_facts.append(f"{columns[1].get_text(strip=True)}: {columns[0].get_text(strip=True)}")
-
     return {
         "title": title,
-        "image": image,
+        "image": image_url,
         "ingredients": ingredients,
-        "instructions": instructions,
-        "nutrition": nutrition_facts
+        "instructions": instructions
     }
 
 ### Streamlit UI ###
@@ -141,12 +138,6 @@ if recipe:
         st.write("### Instructions:")
         for idx, step in enumerate(recipe["instructions"], start=1):
             st.write(f"{idx}. {step}")
-
-    # Display nutrition facts
-    if recipe.get("nutrition"):
-        st.write("### Nutrition Facts:")
-        for fact in recipe["nutrition"]:
-            st.write(f"- {fact}")
 
 else:
     st.write("Select a search method and click 'Find Recipe' to get started.")
