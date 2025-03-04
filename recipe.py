@@ -13,7 +13,6 @@ YELP_API_KEY = st.secrets["YELP_API_KEY"]  # API key for fetching restaurant rec
 # Displaying the app title on the web page
 st.title("🍽 BiteByType - Meals that fit your personality")
 
-# Displaying markdown text on the page
 st.markdown(
     """
     ## 🥗 Welcome to BiteByType!
@@ -28,7 +27,7 @@ st.markdown(
     """
 )
 
-# Personality to Cuisine Mapping (Unchanged)
+# Your exact mapping for personality traits and cuisines
 PERSONALITY_TO_CUISINE = {
     "Openness": ["Japanese", "Indian", "Mediterranean"],
     "Conscientiousness": ["Balanced", "Low-Carb", "Mediterranean"],
@@ -52,7 +51,8 @@ def fetch_api(url, params):
     try:
         response = requests.get(url, params=params)
         if response.status_code == 200:
-            return response.json()
+            data = response.json()
+            return data if data else None
         else:
             return None
     except requests.RequestException:
@@ -70,7 +70,7 @@ def get_recipe_by_personality(personality, diet):
         "instructionsRequired": True
     }
     data = fetch_api(url, params)
-    return data.get("recipes", [None])[0] if data else None
+    return data["recipes"][0] if data and "recipes" in data and data["recipes"] else None
 
 def get_recipe_by_ingredient(ingredient, max_time):
     """Fetch a recipe based on an ingredient and preparation time."""
@@ -83,7 +83,7 @@ def get_recipe_by_ingredient(ingredient, max_time):
         "instructionsRequired": True
     }
     data = fetch_api(url, params)
-    return get_recipe_details_by_id(data["results"][0]["id"]) if data and data.get("results") else None
+    return get_recipe_details_by_id(data["results"][0]["id"]) if data and "results" in data and data["results"] else None
 
 def get_recipe_by_nutrients(nutrient, min_value, max_value, max_time):
     """Fetch a recipe based on nutritional content."""
@@ -108,7 +108,7 @@ def get_recipe_details_by_id(recipe_id):
     }
     return fetch_api(url, params)
 
-# ✅ Adding AllRecipes Integration Without Changing Anything Else
+# ✅ Adding AllRecipes without changing anything else
 meal_types = {
     "Breakfast": "https://www.allrecipes.com/recipes/78/breakfast-and-brunch/",
     "Lunch": "https://www.allrecipes.com/recipes/17561/lunch/",
@@ -145,7 +145,7 @@ def scrape_allrecipes(meal_type_url):
 
     return {"title": title, "image": image_url, "ingredients": ingredients, "instructions": instructions}
 
-# ✅ Streamlit UI (No Changes, Just Added Meal Type Option)
+# ✅ Streamlit UI (Now with Meal Type option)
 search_type = st.radio("## How would you like to find a recipe?", ["By Personality", "By Ingredient", "By Nutrients", "By Meal Type"])
 recipe = None
 
