@@ -8,6 +8,7 @@ st.set_page_config(page_title="🍽 BiteByType - Meals that fit your personality
 
 # Loading API keys securely from Streamlit secrets
 SPOONACULAR_API_KEY = st.secrets["SPOONACULAR_API_KEY"]  # API key for fetching recipes
+YELP_API_KEY = st.secrets["YELP_API_KEY"]  # API key for fetching restaurant recommendations
 
 # Displaying the app title
 st.title("🍽 BiteByType - Meals that fit your personality")
@@ -17,6 +18,7 @@ st.markdown("""
 BiteByType helps you discover recipes tailored to your **personality, ingredients, nutrition, or meal type**! 🍲✨
 - **Choose a recipe**: By Personality 🎭, By Ingredient 🥑, By Nutrients 🏋‍♂, or By Meal Type 🍽.
 - **Get personalized recipes** from **Spoonacular** or **AllRecipes**.
+- **Find nearby restaurants** serving similar dishes with Yelp! 📍🍽
 """)
 
 # Meal type URLs for AllRecipes scraping
@@ -91,13 +93,27 @@ def scrape_allrecipes(meal_type_url):
 
     return {"title": title, "image": image_url, "ingredients": ingredients, "instructions": instructions}
 
+@st.cache_data
+def get_restaurants(location, cuisine):
+    """Fetch nearby restaurants using Yelp API."""
+    url = "https://api.yelp.com/v3/businesses/search"
+    headers = {"Authorization": f"Bearer {YELP_API_KEY}"}
+    params = {"term": cuisine, "location": location, "limit": 5}
+    
+    try:
+        response = requests.get(url, headers=headers, params=params)
+        return response.json().get("businesses", []) if response.status_code == 200 else []
+    except requests.RequestException:
+        return []
+
 # Streamlit UI: Choose search method
 search_type = st.radio("## How would you like to find a recipe?", ["By Personality", "By Ingredient", "By Nutrients", "By Meal Type"])
 
 recipe = None
+location = st.text_input("Enter your location to find nearby restaurants")
 
 if search_type == "By Personality":
-    personality = st.selectbox("Select your dominant personality trait", ["Openness", "Conscientiousness", "Extraversion", "Agreeableness"])
+    personality = st.selectbox("Select your personality trait", ["Openness", "Conscientiousness", "Extraversion", "Agreeableness"])
     diet = st.selectbox("Choose your diet preference", diet_types)
     if st.button("Find Recipe"):
         recipe = get_recipe_by_personality(personality, diet)
@@ -110,8 +126,8 @@ elif search_type == "By Ingredient":
 
 elif search_type == "By Nutrients":
     nutrient = st.selectbox("Choose a nutrient", ["Calories", "Protein", "Fat"])
-    min_value = st.number_input(f"Min {nutrient} (10)", min_value=10, value=100)
-    max_value = st.number_input(f"Max {nutrient} (100)", min_value=10, value=500)
+    min_value = st.number_input(f"Min {nutrient}", min_value=10, value=100)
+    max_value = st.number_input(f"Max {nutrient}", min_value=10, value=500)
     max_time = st.slider("Max preparation time (minutes)", 5, 120, 30)
     if st.button("Find Recipe"):
         recipe = get_recipe_by_nutrients(nutrient, min_value, max_value, max_time)
@@ -121,30 +137,25 @@ elif search_type == "By Meal Type":
     if st.button("Find Recipe"):
         recipe = scrape_allrecipes(MEAL_TYPES[meal_type])
 
-# Display Recipe Details
 if recipe:
     st.subheader(f"🍽 Recommended Recipe: {recipe.get('title')}")
     
     if recipe.get("image"):
         st.image(recipe["image"], width=400)
 
-    if recipe.get("ingredients"):
-        st.write("### 🛒 Ingredients:")
-        for ing in recipe["ingredients"]:
-            st.write(f"- {ing}")
+    st.write("### 🛒 Ingredients:")
+    for ing in recipe.get("ingredients", []):
+        st.write(f"- {ing}")
 
-    if recipe.get("instructions"):
-        st.write("### 🍽 Instructions:")
-    
-        # Check if instructions are a single string or a list of steps
-        if isinstance(recipe["instructions"], str):
-            # If instructions are a single string, print it directly
-            st.write(recipe["instructions"])
-        elif isinstance(recipe["instructions"], list):
-            # If instructions are a list of steps, print them in order
-            for idx, step in enumerate(recipe["instructions"], start=1):
-                st.write(f"{idx}. {step}")
+    st.write("### 🍽 Instructions:")
+    if isinstance(recipe["instructions"], str):
+        st.write(recipe["instructions"])
+    else:
+        for idx, step in enumerate(recipe.get("instructions", []), start=1):
+            st.write(f"{idx}. {step}")
 
-
-else:
-    st.write("Select a search method and click 'Find Recipe' to get started.")
+    if location:
+        restaurants = get_restaurants(location, recipe.get("title", ""))
+        st.write("### 📍 Nearby Restaurants:")
+        for r in restaurants:
+            st.write(f"- {r['name']} ({r['rating']}⭐) - {r['location'].get('address1', 'Address not available')}")
