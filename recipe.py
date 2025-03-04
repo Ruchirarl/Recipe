@@ -7,25 +7,21 @@ import random
 st.set_page_config(page_title="🍽 BiteByType - Meals that fit your personality")
 
 # Load API keys securely from Streamlit secrets
-SPOONACULAR_API_KEY = st.secrets["SPOONACULAR_API_KEY"]  # API key for fetching recipes
-YELP_API_KEY = st.secrets["YELP_API_KEY"]  # API key for fetching restaurant recommendations
+SPOONACULAR_API_KEY = st.secrets["SPOONACULAR_API_KEY"]
+YELP_API_KEY = st.secrets["YELP_API_KEY"]
 
-# Displaying the app title on the web page
+# Display the app title on the web page
 st.title("🍽 BiteByType - Meals that fit your personality")
 
-st.markdown(
-    """
-    ## 🥗 Welcome to BiteByType!
-    BiteByType is your personalized meal finder, helping you discover recipes tailored to your personality, dietary preferences, and nutritional needs! 🥦🍲
-    
-    🔍 How It Works:
-    - Choose a recipe By Personality 🎭, By Ingredient 🥑, By Nutrients 🏋‍♂, or By Meal Type 🍽.
-    - Find recipes that match your taste and lifestyle!
-    - Explore restaurants nearby serving similar cuisines!
-    
-    Let's find your next favorite meal! 🍽✨
-    """
-)
+st.markdown("""
+## 🥗 Welcome to BiteByType!
+BiteByType is your personalized meal finder, helping you discover recipes tailored to your personality, dietary preferences, and nutritional needs! 🥦🍲
+🔍 How It Works:
+- Choose a recipe By Personality 🎭, By Ingredient 🥑, By Nutrients 🏋‍♂, or By Meal Type 🍽.
+- Find recipes that match your taste and lifestyle!
+- Explore restaurants nearby serving similar cuisines!
+Let's find your next favorite meal! 🍽✨
+""")
 
 # Personality to Cuisine Mapping
 PERSONALITY_TO_CUISINE = {
@@ -54,19 +50,15 @@ meal_types = {
     "Snacks": "https://www.allrecipes.com/recipes/76/appetizers-and-snacks/"
 }
 
-### 🥗 Spoonacular API Fetch Function ###
+### 🥗 Spoonacular API Functions ###
 @st.cache_data
 def fetch_api(url, params):
-    """Fetches data from Spoonacular API and logs the response."""
+    """Fetches data from Spoonacular API."""
     try:
         response = requests.get(url, params=params)
         if response.status_code == 200:
             data = response.json()
-            if "recipes" in data and data["recipes"]:
-                return data
-            else:
-                st.warning("No Spoonacular recipes found. Try changing filters.")
-                return None
+            return data if data else None
         else:
             st.error(f"Spoonacular API Error: {response.status_code}")
             return None
@@ -85,7 +77,8 @@ def get_recipe_by_personality(personality, diet):
         "cuisine": cuisine,
         "instructionsRequired": True
     }
-    return fetch_api(url, params)
+    data = fetch_api(url, params)
+    return data.get("recipes", [None])[0] if data and "recipes" in data else None
 
 def get_recipe_by_ingredient(ingredient, max_time):
     """Fetch a recipe based on an ingredient and preparation time."""
@@ -97,7 +90,8 @@ def get_recipe_by_ingredient(ingredient, max_time):
         "number": 1,
         "instructionsRequired": True
     }
-    return fetch_api(url, params)
+    data = fetch_api(url, params)
+    return get_recipe_details_by_id(data["results"][0]["id"]) if data and "results" in data else None
 
 def get_recipe_by_nutrients(nutrient, min_value, max_value, max_time):
     """Fetch a recipe based on nutritional content."""
@@ -110,17 +104,25 @@ def get_recipe_by_nutrients(nutrient, min_value, max_value, max_time):
         "maxReadyTime": max_time,
         "number": 1
     }
+    data = fetch_api(url, params)
+    return get_recipe_details_by_id(data[0]["id"]) if data else None
+
+def get_recipe_details_by_id(recipe_id):
+    """Fetch detailed recipe information by ID."""
+    url = f"https://api.spoonacular.com/recipes/{recipe_id}/information"
+    params = {
+        "apiKey": SPOONACULAR_API_KEY,
+        "includeNutrition": True
+    }
     return fetch_api(url, params)
 
-### 🥗 AllRecipes Scraper (Now Fixed for Empty Results) ###
+### 🥗 AllRecipes Scraper (For Meal Type) ###
 def scrape_allrecipes(meal_type_url):
     """Scrapes a random recipe from AllRecipes for the selected meal type."""
     headers = {"User-Agent": "Mozilla/5.0"}
-    try:
-        response = requests.get(meal_type_url, headers=headers, timeout=10)
-        response.raise_for_status()
-    except requests.exceptions.RequestException as e:
-        st.error(f"Failed to fetch meal type page: {e}")
+    response = requests.get(meal_type_url, headers=headers, timeout=10)
+    if response.status_code != 200:
+        st.error(f"Failed to fetch meal type page: {response.status_code}")
         return None
 
     soup = BeautifulSoup(response.text, "lxml")
@@ -130,11 +132,9 @@ def scrape_allrecipes(meal_type_url):
         return None
 
     recipe_url = random.choice(all_recipe_links)["href"]
-    try:
-        recipe_response = requests.get(recipe_url, headers=headers, timeout=10)
-        recipe_response.raise_for_status()
-    except requests.exceptions.RequestException as e:
-        st.error(f"Failed to fetch the recipe page: {e}")
+    recipe_response = requests.get(recipe_url, headers=headers, timeout=10)
+    if recipe_response.status_code != 200:
+        st.error(f"Failed to fetch the recipe page: {recipe_response.status_code}")
         return None
 
     recipe_soup = BeautifulSoup(recipe_response.text, "lxml")
