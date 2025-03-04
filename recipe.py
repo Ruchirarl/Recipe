@@ -4,10 +4,47 @@ from bs4 import BeautifulSoup
 import random
 
 # Set page config
-st.set_page_config(page_title="🍽 BiteByType - Personalized Meal Finder")
+st.set_page_config(page_title="🍽 BiteByType - Meals that fit your personality")
 
-# Spoonacular API Key (stored securely in Streamlit secrets)
-SPOONACULAR_API_KEY = st.secrets["SPOONACULAR_API_KEY"]
+# Load API keys securely from Streamlit secrets
+SPOONACULAR_API_KEY = st.secrets["SPOONACULAR_API_KEY"]  # API key for fetching recipes
+YELP_API_KEY = st.secrets["YELP_API_KEY"]  # API key for fetching restaurant recommendations
+
+# Displaying the app title on the web page
+st.title("🍽 BiteByType - Meals that fit your personality")
+
+st.markdown(
+    """
+    ## 🥗 Welcome to BiteByType!
+    BiteByType is your personalized meal finder, helping you discover recipes tailored to your personality, dietary preferences, and nutritional needs! 🥦🍲
+    
+    🔍 How It Works:
+    - Choose a recipe By Personality 🎭, By Ingredient 🥑, By Nutrients 🏋‍♂, or By Meal Type 🍽.
+    - Find recipes that match your taste and lifestyle!
+    - Explore restaurants nearby serving similar cuisines!
+    
+    Let's find your next favorite meal! 🍽✨
+    """
+)
+
+# Personality to Cuisine Mapping
+PERSONALITY_TO_CUISINE = {
+    "Openness": ["Japanese", "Indian", "Mediterranean"],
+    "Conscientiousness": ["Balanced", "Low-Carb", "Mediterranean"],
+    "Extraversion": ["BBQ", "Mexican", "Italian"],
+    "Agreeableness": ["Vegetarian", "Comfort Food", "Vegan"],
+    "Neuroticism": ["Healthy", "Mediterranean", "Comfort Food"],
+    "Adventurous": ["Thai", "Korean", "Ethiopian"],
+    "Analytical": ["French", "Greek", "Fusion"],
+    "Creative": ["Molecular Gastronomy", "Experimental", "Fusion"],
+    "Traditional": ["American", "British", "German"]
+}
+
+# Supported Diet Types
+diet_types = [
+    "Gluten Free", "Ketogenic", "Vegetarian", "Lacto-Vegetarian", "Ovo-Vegetarian", "Vegan",
+    "Pescetarian", "Paleo", "Primal", "Low FODMAP", "Whole30"
+]
 
 # Meal types mapped to AllRecipes URLs
 meal_types = {
@@ -29,139 +66,106 @@ def fetch_api(url, params):
 
 def get_recipe_by_personality(personality, diet):
     """Fetch recipe by personality type from Spoonacular."""
+    cuisine = PERSONALITY_TO_CUISINE.get(personality, ["Italian"])[0]
     url = "https://api.spoonacular.com/recipes/random"
     params = {
         "apiKey": SPOONACULAR_API_KEY,
         "number": 1,
         "diet": diet,
+        "cuisine": cuisine,
         "instructionsRequired": True
     }
     data = fetch_api(url, params)
     return data.get("recipes", [None])[0] if data else None
 
+def get_recipe_by_ingredient(ingredient, max_time):
+    """Fetch a recipe based on an ingredient and preparation time."""
+    url = "https://api.spoonacular.com/recipes/complexSearch"
+    params = {
+        "apiKey": SPOONACULAR_API_KEY,
+        "includeIngredients": ingredient,
+        "maxReadyTime": max_time,
+        "number": 1,
+        "instructionsRequired": True
+    }
+    data = fetch_api(url, params)
+    return get_recipe_details_by_id(data["results"][0]["id"]) if data and data.get("results") else None
+
+def get_recipe_by_nutrients(nutrient, min_value, max_value, max_time):
+    """Fetch a recipe based on nutritional content."""
+    url = "https://api.spoonacular.com/recipes/findByNutrients"
+    params = {
+        "apiKey": SPOONACULAR_API_KEY,
+        "addRecipeNutrition": True,
+        f"min{nutrient}": min_value,
+        f"max{nutrient}": max_value,
+        "maxReadyTime": max_time,
+        "number": 1
+    }
+    data = fetch_api(url, params)
+    return get_recipe_details_by_id(data[0]["id"]) if data else None
+
+def get_recipe_details_by_id(recipe_id):
+    """Fetch detailed recipe information by ID."""
+    url = f"https://api.spoonacular.com/recipes/{recipe_id}/information"
+    params = {
+        "apiKey": SPOONACULAR_API_KEY,
+        "includeNutrition": True
+    }
+    return fetch_api(url, params)
+
 ### 🥗 AllRecipes Scraper (Now Picks Random Recipes Each Time) ###
 def scrape_allrecipes(meal_type_url):
     """Scrapes a random recipe from AllRecipes for the selected meal type."""
     headers = {"User-Agent": "Mozilla/5.0"}
-    
-    # Step 1: Fetch the meal category page
     response = requests.get(meal_type_url, headers=headers)
     if response.status_code != 200:
         st.error("Failed to fetch the meal type page.")
         return None
 
     soup = BeautifulSoup(response.text, "lxml")
-
-    # Step 2: Find all valid recipe links (excluding articles)
-    all_recipe_links = soup.select("a[href*='/recipe/']")  # Only valid recipes
-
+    all_recipe_links = soup.select("a[href*='/recipe/']")
     if not all_recipe_links:
-        st.error("No recipes found. The HTML structure might have changed.")
+        st.error("No recipes found.")
         return None
 
-    # ✅ Pick a random recipe instead of always selecting the first one
     recipe_url = random.choice(all_recipe_links)["href"]
-
-    # Step 3: Fetch the detailed recipe page
     recipe_response = requests.get(recipe_url, headers=headers)
     if recipe_response.status_code != 200:
         st.error("Failed to fetch the recipe page.")
         return None
 
     recipe_soup = BeautifulSoup(recipe_response.text, "lxml")
-
-    # Extract title
-    title_tag = recipe_soup.find("h1")
-    title = title_tag.text.strip() if title_tag else "Unknown Recipe"
-
-    # Extract image (Fix missing images)
+    title = recipe_soup.find("h1").text.strip() if recipe_soup.find("h1") else "Unknown Recipe"
     image_tag = recipe_soup.select_one("img.card__img")
-    if image_tag:
-        image_url = image_tag.get("data-src", image_tag.get("src", ""))
-    else:
-        image_url = ""
-
-    # Extract ingredients
+    image_url = image_tag.get("data-src", image_tag.get("src", "")) if image_tag else ""
     ingredients = [ing.get_text(strip=True) for ing in recipe_soup.select(".mm-recipes-structured-ingredients__list-item")]
-
-    # Extract instructions
     instructions = [step.get_text(strip=True) for step in recipe_soup.select(".mntl-sc-block-html")]
-
-    # Extract Nutrition Facts (Now Fixed)
-    nutrition_facts = []
-    nutrition_table = recipe_soup.select_one(".mm-recipes-nutrition-facts-label__table")
     
-    if nutrition_table:
-        for row in nutrition_table.find_all("tr"):
-            columns = row.find_all("td")
-            if len(columns) == 2:
-                nutrient_name = columns[0].get_text(strip=True)
-                nutrient_value = columns[1].get_text(strip=True)
-                nutrition_facts.append(f"{nutrient_name}: {nutrient_value}")
-
-    return {
-        "title": title,
-        "image": image_url,
-        "ingredients": ingredients,
-        "instructions": instructions,
-        "nutrition": nutrition_facts
-    }
+    return {"title": title, "image": image_url, "ingredients": ingredients, "instructions": instructions}
 
 ### 🎨 Streamlit UI ###
-st.title("🍽 BiteByType - Find Meals that Fit Your Personality")
-
-st.markdown("""
-## How It Works:
-1. **Choose a search method:** Personality, Ingredient, Nutrients, or Meal Type.
-2. **Get recipes** from **Spoonacular** or **AllRecipes**.
-3. **Find nearby restaurants** serving similar dishes!
-""")
-
-# Select search method
-search_type = st.radio("## Choose a Search Method", ["By Personality", "By Ingredient", "By Nutrients", "By Meal Type"])
-
-# Initialize recipe variable
+search_type = st.radio("## How would you like to find a recipe?", ["By Personality", "By Ingredient", "By Nutrients", "By Meal Type"])
 recipe = None
 
-# Handle search type selection
-if search_type == "By Personality":
-    personality = st.selectbox("Select Your Personality Trait", ["Openness", "Conscientiousness", "Extraversion", "Agreeableness"])
-    diet = st.selectbox("Choose Your Diet Preference", ["Vegetarian", "Vegan", "Paleo", "Keto", "Balanced"])
-    
-    if st.button("Find Recipe"):
-        recipe = get_recipe_by_personality(personality, diet)
-
-elif search_type == "By Meal Type":
+if search_type == "By Meal Type":
     meal_type = st.selectbox("Choose a Meal Type", list(meal_types.keys()))
-
     if st.button("Find Recipe"):
         recipe = scrape_allrecipes(meal_types[meal_type])
+else:
+    st.write("Other Spoonacular options available.")
 
-# Display Recipe Details
 if recipe:
     st.subheader(f"🍽 Recommended Recipe: {recipe.get('title')}")
-    
-    # ✅ Display recipe image (with caption)
     if recipe.get("image"):
-        st.image(recipe["image"], width=400, caption="Recipe Image")
-
-    # ✅ Display ingredients
+        st.image(recipe["image"], width=400)
     if recipe.get("ingredients"):
         st.write("### 🛒 Ingredients:")
         for ing in recipe["ingredients"]:
             st.write(f"- {ing}")
-
-    # ✅ Display instructions
     if recipe.get("instructions"):
         st.write("### 🍽 Instructions:")
         for idx, step in enumerate(recipe["instructions"], start=1):
             st.write(f"{idx}. {step}")
 
-    # ✅ Display Nutrition Facts
-    if recipe.get("nutrition"):
-        st.write("### 🥗 Nutrition Facts:")
-        for fact in recipe["nutrition"]:
-            st.write(f"- {fact}")
-
-else:
-    st.write("Select a search method and click 'Find Recipe' to get started.")
+st.write("Welcome! Choose a search method above to find a recipe that suits you.")
