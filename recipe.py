@@ -145,45 +145,50 @@ def get_restaurants(location, cuisine):
     return fetch_api(url, params)
 
 # --- Streamlit UI ---
+# Initialize recipe variable
+recipe = None
+
+# Create a radio button to choose the recipe search type
 search_type = st.radio(
     "## How would you like to find a recipe?",
     ["By Personality", "By Ingredient", "By Nutrients"],
     index=None
 )
 
-if search_type == "By Personality":
-    personality = st.selectbox("Select Personality", list(PERSONALITY_TO_CUISINE.keys()))
-    diet = st.selectbox("Select Diet", diet_types)
-    location = st.text_input("Enter your location for restaurant recommendations")
-
-elif search_type == "By Ingredient":
-    ingredient = st.text_input("Enter Ingredient")
-    max_time = st.slider("Max Time (minutes)", 5, 120, 30)
-    location = st.text_input("Enter your location for restaurant recommendations")
-
-elif search_type == "By Nutrients":
-    nutrient = st.selectbox("Select Nutrient", ["Calories", "Protein", "Fat"])
-    min_value = st.number_input("Min Value", 10, 500, 100)
-    max_value = st.number_input("Max Value", 10, 500, 200)
-    max_time = st.slider("Max Time (minutes)", 5, 120, 30)
-    location = st.text_input("Enter your location for restaurant recommendations")
-    # Fetch and display Wikipedia data (for informational purposes)
-    st.write("### Wikipedia Nutritional Information")
-    wiki_data = get_wiki_food_nutrients()
-    if wiki_data["status"] == "success":
-        st.write("Nutritional data from Wikipedia has been incorporated to enhance recipe recommendations.")
-        st.write("Parsed WIKI Data", wiki_data["data"])  # Debugging show data
-        # Display parsed Wikipedia data here
-    else:
-        st.write(f"Error fetching Wikipedia data: {wiki_data['message']}")
-
-if st.button("Find Recipe"):
+if search_type:
     if search_type == "By Personality":
-        recipe = get_recipe_by_personality(personality, diet)
+        personality = st.selectbox("Select Personality", list(PERSONALITY_TO_CUISINE.keys()))
+        diet = st.selectbox("Select Diet", diet_types)
+        location = st.text_input("Enter your location for restaurant recommendations")
+
     elif search_type == "By Ingredient":
-        recipe = get_recipe_by_ingredient(ingredient, max_time)
+        ingredient = st.text_input("Enter Ingredient")
+        max_time = st.slider("Max Time (minutes)", 5, 120, 30)
+        location = st.text_input("Enter your location for restaurant recommendations")
+
     elif search_type == "By Nutrients":
-        recipe = get_recipe_by_nutrients(nutrient, min_value, max_value, max_time)
+        nutrient = st.selectbox("Select Nutrient", ["Calories", "Protein", "Fat"])
+        min_value = st.number_input("Min Value", 10, 500, 100)
+        max_value = st.number_input("Max Value", 10, 500, 200)
+        max_time = st.slider("Max Time (minutes)", 5, 120, 30)
+        location = st.text_input("Enter your location for restaurant recommendations")
+        # Fetch and display Wikipedia data (for informational purposes)
+        st.write("### Wikipedia Nutritional Information")
+        wiki_data = get_wiki_food_nutrients()
+        if wiki_data["status"] == "success":
+            st.write("Nutritional data from Wikipedia has been incorporated to enhance recipe recommendations.")
+            st.write("Parsed WIKI Data", wiki_data["data"])  # Debugging show data
+            # Display parsed Wikipedia data here
+        else:
+            st.write(f"Error fetching Wikipedia data: {wiki_data['message']}")
+
+    if st.button("Find Recipe"):
+        if search_type == "By Personality":
+            recipe = get_recipe_by_personality(personality, diet)
+        elif search_type == "By Ingredient":
+            recipe = get_recipe_by_ingredient(ingredient, max_time)
+        elif search_type == "By Nutrients":
+            recipe = get_recipe_by_nutrients(nutrient, min_value, max_value, max_time)
 
 # If a recipe is found, display the details
 if recipe:
