@@ -148,24 +148,28 @@ def scrape_allrecipes(meal_type_url):
 search_type = st.radio("## How would you like to find a recipe?", ["By Personality", "By Ingredient", "By Nutrients", "By Meal Type"])
 recipe = None
 
-if search_type == "By Meal Type":
+if search_type == "By Personality":
+    personality = st.selectbox("Select Your Personality Trait", list(PERSONALITY_TO_CUISINE.keys()))
+    diet = st.selectbox("Choose Your Diet Preference", diet_types)
+    if st.button("Find Recipe"):
+        recipe = get_recipe_by_personality(personality, diet)
+
+elif search_type == "By Ingredient":
+    ingredient = st.text_input("Enter an ingredient")
+    max_time = st.slider("Max preparation time (minutes)", 5, 120, 30)
+    if st.button("Find Recipe"):
+        recipe = get_recipe_by_ingredient(ingredient, max_time)
+
+elif search_type == "By Nutrients":
+    nutrient = st.selectbox("Choose a nutrient", ["Calories", "Protein", "Fat"])
+    min_value = st.number_input(f"Min {nutrient}", min_value=10, value=100)
+    max_value = st.number_input(f"Max {nutrient}", min_value=10, value=500)
+    max_time = st.slider("Max preparation time (minutes)", 5, 120, 30)
+    if st.button("Find Recipe"):
+        recipe = get_recipe_by_nutrients(nutrient, min_value, max_value, max_time)
+
+elif search_type == "By Meal Type":
     meal_type = st.selectbox("Choose a Meal Type", list(meal_types.keys()))
     if st.button("Find Recipe"):
         recipe = scrape_allrecipes(meal_types[meal_type])
-else:
-    st.write("Other Spoonacular options available.")
-
-if recipe:
-    st.subheader(f"🍽 Recommended Recipe: {recipe.get('title')}")
-    if recipe.get("image"):
-        st.image(recipe["image"], width=400)
-    if recipe.get("ingredients"):
-        st.write("### 🛒 Ingredients:")
-        for ing in recipe["ingredients"]:
-            st.write(f"- {ing}")
-    if recipe.get("instructions"):
-        st.write("### 🍽 Instructions:")
-        for idx, step in enumerate(recipe["instructions"], start=1):
-            st.write(f"{idx}. {step}")
-
 st.write("Welcome! Choose a search method above to find a recipe that suits you.")
