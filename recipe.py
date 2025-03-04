@@ -102,8 +102,7 @@ def get_recipe_by_ingredient(ingredient, max_time):
         "apiKey": SPOONACULAR_API_KEY,
         "includeIngredients": ingredient,
         "maxReadyTime": max_time,
-        "number": 1,
-        "instructionsRequired": True
+        "number": 1
     }
     data = fetch_api(url, params)
     if data and "results" in data and data["results"]:
@@ -112,24 +111,17 @@ def get_recipe_by_ingredient(ingredient, max_time):
 
 def get_recipe_by_nutrients(nutrient, min_value, max_value, max_time):
     """Fetch recipes based on nutrient range."""
-    # Define the API endpoint for searching recipes by nutrient values
     url = "https://api.spoonacular.com/recipes/findByNutrients"
-
-    # Set the query parameters for the API request
     params = {
-        "apiKey": SPOONACULAR_API_KEY,  # API key for authentication
-        "addRecipeNutrition": True,  # Include detailed nutritional information in the response
-        f"min{nutrient}": min_value,  # Minimum threshold for the selected nutrient
-        f"max{nutrient}": max_value,  # Maximum threshold for the selected nutrient
-        "maxReadyTime": max_time, # Filter recipes by maximum preparation time
-        "number": 1  # Request only one recipe
+        "apiKey": SPOONACULAR_API_KEY,
+        nutrient.lower(): min_value,
+        f"max{nutrient}": max_value,
+        "number": 1
     }
-
-    # Fetch data from the API
     data = fetch_api(url, params)
-
-    # If data is available, retrieve detailed recipe information using its ID, otherwise return None
-    return get_recipe_details_by_id(data[0]["id"]) if data else None
+    if data:
+        return get_recipe_details_by_id(data[0]["id"])
+    return None
 
 def get_recipe_details_by_id(recipe_id):
     """Fetch detailed recipe information by ID."""
@@ -145,82 +137,20 @@ def get_restaurants(location, cuisine):
     return fetch_api(url, params)
 
 # --- Streamlit UI ---
-search_type = st.radio(
-    "## How would you like to find a recipe?",
-    ["By Personality", "By Ingredient", "By Nutrients"],
-    index=None
-)
+search_type = st.radio("## How would you like to find a recipe?", ["By Personality", "By Ingredient", "By Nutrients"])
 
 if search_type == "By Personality":
     personality = st.selectbox("Select Personality", list(PERSONALITY_TO_CUISINE.keys()))
     diet = st.selectbox("Select Diet", diet_types)
-    location = st.text_input("Enter your location for restaurant recommendations")
-
 elif search_type == "By Ingredient":
     ingredient = st.text_input("Enter Ingredient")
     max_time = st.slider("Max Time (minutes)", 5, 120, 30)
-    location = st.text_input("Enter your location for restaurant recommendations")
-
 elif search_type == "By Nutrients":
     nutrient = st.selectbox("Select Nutrient", ["Calories", "Protein", "Fat"])
     min_value = st.number_input("Min Value", 10, 500, 100)
     max_value = st.number_input("Max Value", 10, 500, 200)
-    max_time = st.slider("Max Time (minutes)", 5, 120, 30)
-    location = st.text_input("Enter your location for restaurant recommendations")
-    # Fetch and display Wikipedia data (for informational purposes)
-    st.write("### Wikipedia Nutritional Information")
-    wiki_data = get_wiki_food_nutrients()
-    if wiki_data["status"] == "success":
-        st.write("Nutritional data from Wikipedia has been incorporated to enhance recipe recommendations.")
-        st.write("Parsed WIKI Data", wiki_data["data"])  # Debugging show data
-        # Display parsed Wikipedia data here
-    else:
-        st.write(f"Error fetching Wikipedia data: {wiki_data['message']}")
+
+location = st.text_input("Enter your location for restaurant recommendations")
 
 if st.button("Find Recipe"):
-    if search_type == "By Personality":
-        recipe = get_recipe_by_personality(personality, diet)
-    elif search_type == "By Ingredient":
-        recipe = get_recipe_by_ingredient(ingredient, max_time)
-    elif search_type == "By Nutrients":
-        recipe = get_recipe_by_nutrients(nutrient, min_value, max_value, max_time)
-
-# If a recipe is found, display the details
-if recipe:
-    st.subheader(f"Recommended Recipe: {recipe.get('title', 'No title')}")
-
-    # Display recipe image if available
-    st.image(recipe.get("image", ""), width=400)
-
-    # Display preparation time for all recipe types
-    st.write(f"### *Total Preparation Time:* {recipe.get('readyInMinutes', 'N/A')} minutes")
-
-    # Display ingredients list
-    st.write("### Ingredients:")
-    st.write("\n".join(f"- {i['original']}" for i in recipe.get("extendedIngredients", [])))
-
-    # Display cooking instructions
-    st.write("### Instructions:")
-    st.write(recipe.get("instructions", "No instructions available."))
-
-    # Display nutrition details if available
-    if 'nutrition' in recipe and 'nutrients' in recipe['nutrition']:
-        st.write("### Nutrition Information:")
-        for nutrient in recipe['nutrition']['nutrients']:
-            st.write(f"- {nutrient['name']}: {nutrient['amount']} {nutrient['unit']}")
-
-    # If location is provided, fetch nearby restaurants
-    if location:
-        restaurants = get_restaurants(location, recipe.get("cuisine", ""))
-
-        # Display nearby restaurants if found
-        if restaurants:
-            st.write("### Nearby Restaurants:")
-            for r in restaurants:
-                st.write(f"- {r['name']} ({r['rating']}⭐) - {r['location'].get('address1', 'Address not available')}")
-        else:
-            st.write("No nearby restaurants found.")
-
-# If no recipe is found, show a welcome message
-else:
-    st.write("Welcome! Choose a search method above to find a recipe that suits you.")
+    # Call appropriate function based on selection
