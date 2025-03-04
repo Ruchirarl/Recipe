@@ -1,168 +1,193 @@
 import streamlit as st
 import requests
+import wikipedia
 from bs4 import BeautifulSoup
-import random
 
-# Set page config
-st.set_page_config(page_title="🍽 BiteByType - Personalized Meal Finder")
-
-# Spoonacular API Key (stored securely in Streamlit secrets)
+# Load API Keys from Streamlit secrets
 SPOONACULAR_API_KEY = st.secrets["SPOONACULAR_API_KEY"]
+YELP_API_KEY = st.secrets["YELP_API_KEY"]
 
-# Meal types mapped to AllRecipes URLs
-meal_types = {
-    "Breakfast": "https://www.allrecipes.com/recipes/78/breakfast-and-brunch/",
-    "Lunch": "https://www.allrecipes.com/recipes/17561/lunch/",
-    "Dinner": "https://www.allrecipes.com/recipes/17562/dinner/",
-    "Snacks": "https://www.allrecipes.com/recipes/76/appetizers-and-snacks/"
+# Streamlit App Configuration
+st.set_page_config(page_title="🍽 BiteByType - Personalized Recipes")
+st.title("🍽 BiteByType - Personalized Recipes")
+
+# --- Welcome Message ---
+st.markdown("""
+    ## 🥗 Welcome to BiteByType!
+    Discover recipes tailored to your *personality, dietary preferences, and nutrition needs*! 🥦🍲
+
+    🔍 *How It Works*  
+    - Choose a recipe By Personality 🎭, By Ingredient 🥑, By Nutrients 🏋‍♂, or Wikipedia Search 📖  
+    - Get recipes that match your taste and lifestyle!  
+    - Find nearby restaurants serving similar cuisines!  
+""")
+
+# --- Personality to Cuisine Mapping ---
+PERSONALITY_TO_CUISINE = {
+    "Openness": ["Japanese", "Indian", "Mediterranean"],
+    "Conscientiousness": ["Balanced", "Low-Carb", "Mediterranean"],
+    "Extraversion": ["BBQ", "Mexican", "Italian"],
+    "Agreeableness": ["Vegetarian", "Comfort Food", "Vegan"],
+    "Neuroticism": ["Healthy", "Mediterranean", "Comfort Food"],
+    "Adventurous": ["Thai", "Korean", "Ethiopian"],
+    "Analytical": ["French", "Greek", "Fusion"],
+    "Creative": ["Molecular Gastronomy", "Experimental", "Fusion"],
+    "Traditional": ["American", "British", "German"]
 }
 
-### 🥗 Spoonacular API Fetch Function ###
+diet_types = [
+    "Gluten Free", "Ketogenic", "Vegetarian", "Lacto-Vegetarian", "Ovo-Vegetarian", "Vegan",
+    "Pescetarian", "Paleo", "Primal", "Low FODMAP", "Whole30"
+]
+
+# --- API Utility Function ---
 @st.cache_data
 def fetch_api(url, params):
-    """Fetches data from Spoonacular API."""
+    """Fetches data from an API and returns JSON response."""
     try:
         response = requests.get(url, params=params)
-        return response.json() if response.status_code == 200 else None
-    except requests.RequestException:
+        if response.status_code == 200:
+            return response.json()
+        else:
+            st.error(f"API Error: Status code {response.status_code}")
+            return None
+    except requests.RequestException as e:
+        st.error(f"Request Exception: {e}")
         return None
 
+# --- Wikipedia Recipe Search ---
+def get_wikipedia_recipe(query):
+    """Fetch a recipe summary from Wikipedia."""
+    try:
+        page = wikipedia.page(query)
+        return page.summary[:1000] + "..."  # Limit text length
+    except wikipedia.exceptions.DisambiguationError as e:
+        return f"Multiple results found: {e.options}"
+    except wikipedia.exceptions.PageError:
+        return "Recipe not found on Wikipedia."
+    except Exception as e:
+        return f"Error fetching Wikipedia: {e}"
+
+# --- Recipe Search Functions ---
 def get_recipe_by_personality(personality, diet):
-    """Fetch recipe by personality type from Spoonacular."""
+    """Fetch a recipe based on personality and diet preferences."""
+    cuisine = PERSONALITY_TO_CUISINE.get(personality, ["Italian"])[0]
     url = "https://api.spoonacular.com/recipes/random"
     params = {
         "apiKey": SPOONACULAR_API_KEY,
         "number": 1,
         "diet": diet,
+        "cuisine": cuisine,
         "instructionsRequired": True
     }
     data = fetch_api(url, params)
     return data.get("recipes", [None])[0] if data else None
 
-### 🥗 AllRecipes Scraper (Now Picks Random Recipes) ###
-@st.cache_data
-def scrape_allrecipes(meal_type_url):
-    """Scrapes a random recipe from AllRecipes for the selected meal type."""
-    headers = {"User-Agent": "Mozilla/5.0"}
-    
-    # Step 1: Fetch the meal category page
-    response = requests.get(meal_type_url, headers=headers)
-    if response.status_code != 200:
-        st.error("Failed to fetch the meal type page.")
-        return None
-
-    soup = BeautifulSoup(response.text, "lxml")
-
-    # Step 2: Find all valid recipe links (excluding articles)
-    all_recipe_links = soup.select("a[href*='/recipe/']")  # Only valid recipes
-
-    if not all_recipe_links:
-        st.error("No recipes found. The HTML structure might have changed.")
-        return None
-
-    # ✅ Pick a random recipe instead of always selecting the first one
-    recipe_url = random.choice(all_recipe_links)["href"]
-
-    # Step 3: Fetch the detailed recipe page
-    recipe_response = requests.get(recipe_url, headers=headers)
-    if recipe_response.status_code != 200:
-        st.error("Failed to fetch the recipe page.")
-        return None
-
-    recipe_soup = BeautifulSoup(recipe_response.text, "lxml")
-
-    # Extract title
-    title_tag = recipe_soup.find("h1")
-    title = title_tag.text.strip() if title_tag else "Unknown Recipe"
-
-    # Extract image (Fix missing images)
-    image_tag = recipe_soup.select_one("img.card__img")
-    if image_tag:
-        image_url = image_tag.get("data-src", image_tag.get("src", ""))
-    else:
-        image_url = ""
-
-    # Extract ingredients
-    ingredients = [ing.get_text(strip=True) for ing in recipe_soup.select(".mm-recipes-structured-ingredients__list-item")]
-
-    # Extract instructions
-    instructions = [step.get_text(strip=True) for step in recipe_soup.select(".mntl-sc-block-html")]
-
-    # Extract Nutrition Facts (Now Fixed)
-    nutrition_facts = []
-    nutrition_table = recipe_soup.select_one(".mm-recipes-nutrition-facts-label__table")
-    
-    if nutrition_table:
-        for row in nutrition_table.find_all("tr"):
-            columns = row.find_all("td")
-            if len(columns) == 2:
-                nutrient_name = columns[0].get_text(strip=True)
-                nutrient_value = columns[1].get_text(strip=True)
-                nutrition_facts.append(f"{nutrient_name}: {nutrient_value}")
-
-    return {
-        "title": title,
-        "image": image_url,
-        "ingredients": ingredients,
-        "instructions": instructions,
-        "nutrition": nutrition_facts
+def get_recipe_by_ingredient(ingredient, max_time):
+    """Fetch a recipe based on an ingredient and preparation time."""
+    url = "https://api.spoonacular.com/recipes/complexSearch"
+    params = {
+        "apiKey": SPOONACULAR_API_KEY,
+        "includeIngredients": ingredient,
+        "maxReadyTime": max_time,
+        "number": 1,
+        "instructionsRequired": True
     }
+    data = fetch_api(url, params)
+    return get_recipe_details_by_id(data["results"][0]["id"]) if data and data.get("results") else None
 
-### 🎨 Streamlit UI ###
-st.title("🍽 BiteByType - Find Meals that Fit Your Personality")
+def get_recipe_by_nutrients(nutrient, min_value, max_value, max_time):
+    """Fetch a recipe based on nutrient range."""
+    url = "https://api.spoonacular.com/recipes/findByNutrients"
+    params = {
+        "apiKey": SPOONACULAR_API_KEY,
+        f"min{nutrient}": min_value,
+        f"max{nutrient}": max_value,
+        "number": 1
+    }
+    data = fetch_api(url, params)
+    return get_recipe_details_by_id(data[0]["id"]) if data else None
 
-st.markdown("""
-## How It Works:
-1. **Choose a search method:** Personality, Ingredient, Nutrients, or Meal Type.
-2. **Get recipes** from **Spoonacular** or **AllRecipes**.
-3. **Find nearby restaurants** serving similar dishes!
-""")
+def get_recipe_details_by_id(recipe_id):
+    """Fetch detailed recipe information by ID."""
+    url = f"https://api.spoonacular.com/recipes/{recipe_id}/information"
+    params = {
+        "apiKey": SPOONACULAR_API_KEY,
+        "includeNutrition": True
+    }
+    return fetch_api(url, params)
 
-# Select search method
-search_type = st.radio("## Choose a Search Method", ["By Personality", "By Ingredient", "By Nutrients", "By Meal Type"])
+# --- Restaurant Search ---
+@st.cache_data
+def get_restaurants(location, cuisine):
+    """Fetch nearby restaurants using Yelp API."""
+    url = "https://api.yelp.com/v3/businesses/search"
+    headers = {
+        "Authorization": f"Bearer {YELP_API_KEY}"
+    }
+    params = {
+        "term": cuisine,
+        "location": location,
+        "limit": 5
+    }
+    try:
+        response = requests.get(url, headers=headers, params=params)
+        return response.json().get("businesses", []) if response.status_code == 200 else []
+    except requests.RequestException:
+        return []
 
-# Initialize recipe variable
+# --- Streamlit UI ---
+search_type = st.radio(
+    "## How would you like to find a recipe?",
+    ["By Personality", "By Ingredient", "By Nutrients", "Wikipedia Search"],
+    index=None
+)
+
 recipe = None
 
-# Handle search type selection
-if search_type == "By Personality":
-    personality = st.selectbox("Select Your Personality Trait", ["Openness", "Conscientiousness", "Extraversion", "Agreeableness"])
-    diet = st.selectbox("Choose Your Diet Preference", ["Vegetarian", "Vegan", "Paleo", "Keto", "Balanced"])
-    
-    if st.button("Find Recipe"):
-        recipe = get_recipe_by_personality(personality, diet)
+if search_type:
+    if search_type == "By Personality":
+        personality = st.selectbox(
+            "Select your dominant personality trait",
+            list(PERSONALITY_TO_CUISINE.keys()),
+            index=None
+        )
+        diet = st.selectbox(
+            "Choose your diet preference",
+            diet_types,
+            index=None
+        )
+        if st.button("Find Recipe"):
+            recipe = get_recipe_by_personality(personality, diet)
 
-elif search_type == "By Meal Type":
-    meal_type = st.selectbox("Choose a Meal Type", list(meal_types.keys()))
+    elif search_type == "By Ingredient":
+        ingredient = st.text_input("Enter an ingredient")
+        max_time = st.slider("Max preparation time (minutes)", 5, 120, 30)
+        if st.button("Find Recipe"):
+            recipe = get_recipe_by_ingredient(ingredient, max_time)
 
-    if st.button("Find Recipe"):
-        recipe = scrape_allrecipes(meal_types[meal_type])
+    elif search_type == "By Nutrients":
+        nutrient = st.selectbox("Choose a nutrient", ["Calories", "Protein", "Fat"])
+        min_value = st.number_input(f"Min {nutrient}", min_value=0, value=100)
+        max_value = st.number_input(f"Max {nutrient}", min_value=0, value=200)
+        max_time = st.slider("Max preparation time (minutes)", 5, 120, 30)
+        if st.button("Find Recipe"):
+            recipe = get_recipe_by_nutrients(nutrient, min_value, max_value, max_time)
 
-# Display Recipe Details
+    elif search_type == "Wikipedia Search":
+        wiki_query = st.text_input("Enter the recipe name to search on Wikipedia")
+        if st.button("Search Wikipedia"):
+            summary = get_wikipedia_recipe(wiki_query)
+            st.write(summary)
+
 if recipe:
-    st.subheader(f"🍽 Recommended Recipe: {recipe.get('title')}")
-    
-    # ✅ Display recipe image (with caption)
-    if recipe.get("image"):
-        st.image(recipe["image"], width=400, caption="Recipe Image")
-
-    # ✅ Display ingredients
-    if recipe.get("ingredients"):
-        st.write("### 🛒 Ingredients:")
-        for ing in recipe["ingredients"]:
-            st.write(f"- {ing}")
-
-    # ✅ Display instructions
-    if recipe.get("instructions"):
-        st.write("### 🍽 Instructions:")
-        for idx, step in enumerate(recipe["instructions"], start=1):
-            st.write(f"{idx}. {step}")
-
-    # ✅ Display Nutrition Facts
-    if recipe.get("nutrition"):
-        st.write("### 🥗 Nutrition Facts:")
-        for fact in recipe["nutrition"]:
-            st.write(f"- {fact}")
+    st.subheader(f"Recommended Recipe: {recipe.get('title', 'No title')}")
+    st.image(recipe.get("image", ""), width=400)
+    st.write(f"### *Total Preparation Time:* {recipe.get('readyInMinutes', 'N/A')} minutes")
+    st.write("### Ingredients:")
+    st.write("\n".join(f"- {i['original']}" for i in recipe.get("extendedIngredients", [])))
+    st.write("### Instructions:")
+    st.write(recipe.get("instructions", "No instructions available."))
 
 else:
-    st.write("Select a search method and click 'Find Recipe' to get started.")
+    st.write("Welcome! Choose a search method above to find a recipe that suits you.")
