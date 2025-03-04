@@ -135,8 +135,16 @@ if recipe:
 
     if recipe.get("instructions"):
         st.write("### 🍽 Instructions:")
-        for idx, step in enumerate(recipe["instructions"], start=1):
-            st.write(f"{idx}. {step}")
+    
+        # Check if instructions are a single string or a list of steps
+        if isinstance(recipe["instructions"], str):
+            # If instructions are a single string, print it directly
+            st.write(recipe["instructions"])
+        elif isinstance(recipe["instructions"], list):
+            # If instructions are a list of steps, print them in order
+            for idx, step in enumerate(recipe["instructions"], start=1):
+                st.write(f"{idx}. {step}")
+
 
 else:
     st.write("Select a search method and click 'Find Recipe' to get started.")
