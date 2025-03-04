@@ -1,8 +1,4 @@
-requests
 streamlit
-python-dotenv
+requests
 beautifulsoup4
 lxml
-pandas
-wikipedia
-random
