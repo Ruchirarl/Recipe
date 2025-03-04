@@ -16,7 +16,7 @@ meal_types = {
     "Snacks": "https://www.allrecipes.com/recipes/76/appetizers-and-snacks/"
 }
 
-### Spoonacular API Fetch Function ###
+### 🥗 Spoonacular API Fetch Function ###
 @st.cache_data
 def fetch_api(url, params):
     """Fetches data from Spoonacular API."""
@@ -38,7 +38,7 @@ def get_recipe_by_personality(personality, diet):
     data = fetch_api(url, params)
     return data.get("recipes", [None])[0] if data else None
 
-### 🥗 AllRecipes Scraper (Fixed Version) ###
+### 🥗 AllRecipes Scraper (Including Images & Nutrition Facts) ###
 @st.cache_data
 def scrape_allrecipes(meal_type_url):
     """Scrapes a full recipe from AllRecipes for the selected meal type."""
@@ -74,9 +74,12 @@ def scrape_allrecipes(meal_type_url):
     title_tag = recipe_soup.find("h1")
     title = title_tag.text.strip() if title_tag else "Unknown Recipe"
 
-    # Extract image (Handle missing images)
-    image_tag = recipe_soup.select_one("img.mntl-image")
-    image_url = image_tag.get("data-src", image_tag.get("src", "")) if image_tag else ""
+    # Extract image (Fix missing images)
+    image_tag = recipe_soup.select_one("img.card__img")
+    if image_tag:
+        image_url = image_tag.get("data-src", image_tag.get("src", ""))
+    else:
+        image_url = ""
 
     # Extract ingredients
     ingredients = [ing.get_text(strip=True) for ing in recipe_soup.select(".mm-recipes-structured-ingredients__list-item")]
@@ -84,11 +87,24 @@ def scrape_allrecipes(meal_type_url):
     # Extract instructions
     instructions = [step.get_text(strip=True) for step in recipe_soup.select(".mntl-sc-block-html")]
 
+    # Extract Nutrition Facts (New Fix)
+    nutrition_facts = []
+    nutrition_table = recipe_soup.select_one(".mm-recipes-nutrition-facts-label__table")
+    
+    if nutrition_table:
+        for row in nutrition_table.find_all("tr"):
+            columns = row.find_all("td")
+            if len(columns) == 2:
+                nutrient_name = columns[0].get_text(strip=True)
+                nutrient_value = columns[1].get_text(strip=True)
+                nutrition_facts.append(f"{nutrient_name}: {nutrient_value}")
+
     return {
         "title": title,
         "image": image_url,
         "ingredients": ingredients,
-        "instructions": instructions
+        "instructions": instructions,
+        "nutrition": nutrition_facts  # Now extracts correct nutrition facts
     }
 
 ### 🎨 Streamlit UI ###
@@ -125,21 +141,27 @@ elif search_type == "By Meal Type":
 if recipe:
     st.subheader(f"🍽 Recommended Recipe: {recipe.get('title')}")
     
-    # Display recipe image
+    # ✅ Display recipe image (with caption)
     if recipe.get("image"):
-        st.image(recipe["image"], width=400)
+        st.image(recipe["image"], width=400, caption="Recipe Image")
 
-    # Display ingredients
+    # ✅ Display ingredients
     if recipe.get("ingredients"):
-        st.write("### Ingredients:")
+        st.write("### 🛒 Ingredients:")
         for ing in recipe["ingredients"]:
             st.write(f"- {ing}")
 
-    # Display instructions
+    # ✅ Display instructions
     if recipe.get("instructions"):
-        st.write("### Instructions:")
+        st.write("### 🍽 Instructions:")
         for idx, step in enumerate(recipe["instructions"], start=1):
             st.write(f"{idx}. {step}")
+
+    # ✅ Display Nutrition Facts
+    if recipe.get("nutrition"):
+        st.write("### 🥗 Nutrition Facts:")
+        for fact in recipe["nutrition"]:
+            st.write(f"- {fact}")
 
 else:
     st.write("Select a search method and click 'Find Recipe' to get started.")
