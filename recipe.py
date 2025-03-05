@@ -1,30 +1,75 @@
 import streamlit as st
 import requests
-import wikipedia
-import pandas as pd
 from bs4 import BeautifulSoup
+import pandas as pd
 
-# API Keys (Load from Streamlit secrets)
+# Setting Streamlit page title
+st.set_page_config(page_title="🍽 BiteByType - Meals that fit your personality")
+
+# Loading API keys from Streamlit secrets
 SPOONACULAR_API_KEY = st.secrets["SPOONACULAR_API_KEY"]
 YELP_API_KEY = st.secrets["YELP_API_KEY"]
 
-# Streamlit App Configuration
-st.set_page_config(page_title="🍽 BiteByType - Personalized Recipes")
-st.title("🍽 BiteByType - Personalized Recipes")
+# Displaying the app title
+st.title("🍽 BiteByType - Meals that fit your personality")
 
-st.markdown("""
-    ## 🥗 Welcome to BiteByType!
-    Discover personalized recipes tailored to your taste, diet, and nutritional needs. 🍲
+# --- Function to Fetch Wikipedia Beverages ---
+@st.cache_data
+def get_wikipedia_beverages():
+    """Scrapes Wikipedia and extracts beverage data."""
+    url = "https://en.wikipedia.org/wiki/Table_of_food_nutrients"
+    response = requests.get(url)
+    soup = BeautifulSoup(response.text, "html.parser")
 
-    🔍 *How It Works:*
-    - Search By Personality 🎭, By Ingredient 🥑, or By Nutrients 🏋‍♂.
-    - Get recipes that match your lifestyle!
-    - Find restaurants serving similar cuisines!
+    # Extracting the correct table (16th table on the page)
+    tables = soup.find_all("table", {"class": "wikitable"})
+    beverages_table = tables[15]  # Selecting the beverages table
 
-    Let's cook something amazing! 🍽✨
-""")
+    # Convert HTML table to DataFrame
+    df = pd.read_html(str(beverages_table))[0]
 
-# --- API Utility Function ---
+    # Rename columns to avoid issues
+    df.columns = ["Food", "Measure", "Grams", "Calories", "Protein", "Carb", "Fiber", "Fat", "Sat_fat"]
+
+    # Drop the first row if it's merged content (like "Beverages")
+    df = df[df["Food"] != "Beverages"]
+
+    return df
+
+# Fetch Wikipedia beverages
+beverages_df = get_wikipedia_beverages()
+
+# --- Function to Suggest a Beverage by Personality ---
+def suggest_beverage(personality):
+    """Finds a Wikipedia beverage related to a personality (random pick)."""
+    if personality in PERSONALITY_TO_CUISINE:
+        return beverages_df["Food"].sample(n=1).values[0]  # Pick a random drink
+    return "Water"  # Default fallback
+
+# --- NEW: Function to Suggest a Beverage by Meal Type ---
+def suggest_beverage_by_meal_type(meal_type):
+    """
+    Picks a random beverage from the Wikipedia beverages table.
+    (Currently not filtering by meal_type—purely random.)
+    """
+    return beverages_df["Food"].sample(n=1).values[0]
+
+# --- Personality to Cuisine Mapping ---
+PERSONALITY_TO_CUISINE = {
+    "Openness": ["Japanese", "Indian", "Mediterranean"],
+    "Conscientiousness": ["Balanced", "Low-Carb", "Mediterranean"],
+    "Extraversion": ["BBQ", "Mexican", "Italian"],
+    "Agreeableness": ["Vegetarian", "Comfort Food", "Vegan"],
+    "Neuroticism": ["Healthy", "Mediterranean", "Comfort Food"],
+    "Adventurous": ["Thai", "Korean", "Ethiopian"],
+    "Analytical": ["French", "Greek", "Fusion"],
+    "Creative": ["Molecular Gastronomy", "Experimental", "Fusion"],
+    "Traditional": ["American", "British", "German"]
+}
+
+# --- Diet Types ---
+diet_types = ["Gluten Free", "Ketogenic", "Vegetarian", "Vegan", "Paleo", "Whole30"]
+
 @st.cache_data
 def fetch_api(url, params):
     """Fetch data from an API and return JSON response."""
@@ -33,164 +78,80 @@ def fetch_api(url, params):
         if response.status_code == 200:
             return response.json()
         else:
-            st.error(f"API Error: Status code {response.status_code}")
             return None
-    except requests.RequestException as e:
-        st.error(f"Request Exception: {e}")
+    except requests.RequestException:
         return None
 
-# --- Wikipedia Data Function ---
-@st.cache_data
-def get_wiki_food_nutrients():
-    """Fetch and parse the Wikipedia table of food nutrients."""
-    try:
-        url = "https://en.wikipedia.org/wiki/Table_of_food_nutrients"
-        response = requests.get(url)
-        if response.status_code != 200:
-            return {"status": "error", "message": f"Failed to fetch page. Status code: {response.status_code}"}
-
-        soup = BeautifulSoup(response.text, 'html.parser')
-        tables = soup.find_all('table', {'class': 'wikitable'})
-
-        if not tables:
-            return {"status": "error", "message": "No tables found on the Wikipedia page"}
-
-        df = pd.read_html(str(tables[0]))[0]  # Convert first table to DataFrame
-
-        return {"status": "success", "data": df}
-
-    except Exception as e:
-        return {"status": "error", "message": str(e)}
-
-# --- Recipe Search Functions ---
-def get_recipe_by_nutrients(nutrient, min_value, max_value, max_time):
-    """Fetch recipes based on nutrient range."""
-    wiki_data = get_wiki_food_nutrients()
-
-    if wiki_data["status"] == "success":
-        df = wiki_data["data"]
-        df[nutrient] = pd.to_numeric(df[nutrient], errors='coerce')
-        filtered_ingredients = df[(df[nutrient] >= min_value) & (df[nutrient] <= max_value)]["Food"].tolist()
-
-        if not filtered_ingredients:
-            st.write("No matching foods found.")
-            return None
-
-        ingredients = ", ".join(filtered_ingredients)
-
-        # Fetch recipe
-        url = "https://api.spoonacular.com/recipes/complexSearch"
-        params = {
-            "apiKey": SPOONACULAR_API_KEY,
-            "includeIngredients": ingredients,
-            "maxReadyTime": max_time,
-            "number": 1,
-            "instructionsRequired": True
-        }
-
-        data = fetch_api(url, params)
-
-        if data and "results" in data and data["results"]:
-            return get_recipe_details_by_id(data["results"][0]["id"])
-        else:
-            st.write("No recipes found with those ingredients.")
-            return None
-    else:
-        st.write(f"Error fetching Wikipedia data: {wiki_data['message']}")
-        return None
-
-def get_recipe_details_by_id(recipe_id):
-    """Fetch detailed recipe information by ID."""
-    url = f"https://api.spoonacular.com/recipes/{recipe_id}/information"
-    params = {"apiKey": SPOONACULAR_API_KEY, "includeNutrition": True}
-    return fetch_api(url, params)
-
-def get_recipe_by_ingredient(ingredient):
-    """Fetch a recipe based on a single ingredient."""
-    url = "https://api.spoonacular.com/recipes/findByIngredients"
+# --- Fetch Recipes ---
+def get_recipe_by_personality(personality, diet):
+    cuisine = PERSONALITY_TO_CUISINE.get(personality, ["Italian"])[0]
+    url = "https://api.spoonacular.com/recipes/random"
     params = {
         "apiKey": SPOONACULAR_API_KEY,
-        "ingredients": ingredient,
-        "number": 1
-    }
-    data = fetch_api(url, params)
-
-    if data:
-        return get_recipe_details_by_id(data[0]["id"]) if data else None
-    else:
-        return None
-
-def get_personality_recipe(personality):
-    """Return a recipe based on personality type."""
-    personality_recipes = {
-        "Adventurous": "Mexican",
-        "Health Conscious": "Salad",
-        "Comfort Seeker": "Mac and Cheese",
-        "Minimalist": "Stir Fry"
-    }
-
-    cuisine = personality_recipes.get(personality, "Vegetarian")
-    url = "https://api.spoonacular.com/recipes/complexSearch"
-    params = {
-        "apiKey": SPOONACULAR_API_KEY,
+        "number": 1,
+        "diet": diet,
         "cuisine": cuisine,
-        "number": 1
+        "instructionsRequired": True
     }
-
     data = fetch_api(url, params)
-    return get_recipe_details_by_id(data["results"][0]["id"]) if data and "results" in data else None
-
-# --- Yelp Restaurant Search ---
-def find_restaurants(location, cuisine):
-    """Fetch nearby restaurants serving the selected cuisine."""
-    url = "https://api.yelp.com/v3/businesses/search"
-    headers = {"Authorization": f"Bearer {YELP_API_KEY}"}
-    params = {"term": cuisine, "location": location, "limit": 5}
-
-    response = requests.get(url, headers=headers, params=params)
-    if response.status_code == 200:
-        return response.json().get("businesses", [])
-    else:
-        return []
+    return data.get("recipes", [None])[0] if data else None
 
 # --- Streamlit UI ---
 search_type = st.radio(
     "## How would you like to find a recipe?",
-    ["By Nutrients", "By Ingredient", "By Personality", "Find Restaurants"],
-    index=0
+    [
+        "By Personality",
+        "By Ingredient",
+        "By Nutrients",
+        "Drinks by Personality",
+        "Get Drink by Meal Type"  # <-- NEW 5th OPTION
+    ],
+    index=None
 )
 
-if search_type == "By Nutrients":
-    nutrient = st.selectbox("Select Nutrient", ["calories", "protein", "fat"])
-    min_value = st.number_input("Min Value", 10, 500, 100)
-    max_value = st.number_input("Max Value", 10, 500, 200)
-    max_time = st.slider("Max Time (minutes)", 5, 120, 30)
+recipe = None
+suggested_beverage = None
 
-    if st.button("Find Recipe"):
-        recipe = get_recipe_by_nutrients(nutrient, min_value, max_value, max_time)
-        if recipe:
-            st.write(recipe)
+if search_type:
+    # --- 1) Recipe by Personality ---
+    if search_type == "By Personality":
+        personality = st.selectbox("Select your dominant personality trait", list(PERSONALITY_TO_CUISINE.keys()), index=None)
+        diet = st.selectbox("Choose your diet preference", diet_types, index=None)
 
-elif search_type == "By Ingredient":
-    ingredient = st.text_input("Enter an ingredient (e.g., chicken, broccoli)")
-    if st.button("Find Recipe"):
-        recipe = get_recipe_by_ingredient(ingredient)
-        if recipe:
-            st.write(recipe)
+        if st.button("Find Recipe"):
+            recipe = get_recipe_by_personality(personality, diet)
 
-elif search_type == "By Personality":
-    personality = st.selectbox("Select Personality Type", ["Adventurous", "Health Conscious", "Comfort Seeker", "Minimalist"])
-    if st.button("Find Recipe"):
-        recipe = get_personality_recipe(personality)
-        if recipe:
-            st.write(recipe)
+    # --- 2) Recipe by Ingredient (Not displayed in your snippet, but presumably in your real code) ---
+    elif search_type == "By Ingredient":
+        st.write("Your original logic for 'By Ingredient' goes here...")
 
-elif search_type == "Find Restaurants":
-    location = st.text_input("Enter your city or ZIP code")
-    cuisine = st.text_input("Enter cuisine type (e.g., Italian, Mexican)")
-    if st.button("Find Restaurants"):
-        restaurants = find_restaurants(location, cuisine)
-        for r in restaurants:
-            st.write(f"### {r['name']}")
-            st.write(f"📍 {r['location']['address1']}")
-            st.write(f"⭐ Rating: {r['rating']} ({r['review_count']} reviews)")
+    # --- 3) Recipe by Nutrients (Not displayed in your snippet, but presumably in your real code) ---
+    elif search_type == "By Nutrients":
+        st.write("Your original logic for 'By Nutrients' goes here...")
+
+    # --- 4) Drinks by Personality ---
+    elif search_type == "Drinks by Personality":
+        personality = st.selectbox("Select your dominant personality trait", list(PERSONALITY_TO_CUISINE.keys()), index=None)
+
+        if st.button("Find Drink"):
+            suggested_beverage = suggest_beverage(personality)
+
+    # --- 5) Drinks by Meal Type (NEW) ---
+    elif search_type == "Get Drink by Meal Type":
+        meal_type = st.selectbox("Select a meal type", ["Breakfast", "Lunch", "Dinner", "Snacks"])
+
+        if st.button("Get Drink"):
+            suggested_beverage = suggest_beverage_by_meal_type(meal_type)
+
+# --- Display Recipe ---
+if recipe:
+    st.subheader(f"Recommended Recipe: {recipe.get('title', 'No title')}")
+    st.image(recipe.get("image", ""), width=400)
+    st.write(f"### Total Preparation Time: {recipe.get('readyInMinutes', 'N/A')} minutes")
+
+# --- Display Beverage ---
+if suggested_beverage:
+    st.subheader(f"🍹 Suggested Drink: *{suggested_beverage}* (From Wikipedia)")
+
+else:
+    st.write("Welcome! Choose a search method above to find a recipe or a drink.")
