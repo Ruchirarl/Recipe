@@ -5,42 +5,30 @@ from bs4 import BeautifulSoup
 import pandas as pd
 import random
 
-# ───────────────────────────────────────────────────────────
-# Streamlit Page Configuration
-# ───────────────────────────────────────────────────────────
+# Setting up the Streamlit page with a friendly title
 st.set_page_config(page_title="🍽 BiteByType - Meals that fit your personality")
 
-# ───────────────────────────────────────────────────────────
-# Load API Keys from Streamlit Secrets
-# ───────────────────────────────────────────────────────────
+# Loading API keys safely from Streamlit secrets
 SPOONACULAR_API_KEY = st.secrets["SPOONACULAR_API_KEY"]
 YELP_API_KEY = st.secrets["YELP_API_KEY"]  # Not used here, but available if needed
 
-# ───────────────────────────────────────────────────────────
-# Main Title & Introduction
-# ───────────────────────────────────────────────────────────
+# Displaying the main title and explaining the app
 st.title("🍽 BiteByType - Meals that fit your personality")
-
 st.markdown(
     """
     ## 🥗 Welcome to BiteByType!
-    Discover recipes and drinks based on **personality**, **nutrient needs**, **ingredient**, 
-    **meal type**, or simply your **personality** for drinks (from Wikipedia)!  
-    
-    **Menu**:
-    1. **By Personality** (Spoonacular)  
-    2. **By Nutrients** (Spoonacular)  
-    3. **By Ingredient** (Spoonacular)  
-    4. **By Meal Type** (AllRecipes – no max prep time)  
-    5. **Drink by Personality** (Wikipedia)  
-    
-    Let's get started! 🍽
+    Here, you can explore **five different ways** to discover new recipes or drinks. 
+    Choose an approach below and let the app guide you!
+
+    1. **By Personality** (Spoonacular)
+    2. **By Nutrients** (Spoonacular)
+    3. **By Ingredient** (Spoonacular)
+    4. **By Meal Type** (AllRecipes)
+    5. **Drink by Personality** (Wikipedia)
     """
 )
 
-# ───────────────────────────────────────────────────────────
-# 1) Personality-to-Cuisine Mapping
-# ───────────────────────────────────────────────────────────
+# Personality-to-cuisine mapping for Spoonacular recipe suggestions
 PERSONALITY_TO_CUISINE = {
     "Openness": ["Japanese", "Indian", "Mediterranean"],
     "Conscientiousness": ["Balanced", "Low-Carb", "Mediterranean"],
@@ -53,36 +41,31 @@ PERSONALITY_TO_CUISINE = {
     "Traditional": ["American", "British", "German"]
 }
 
-# ───────────────────────────────────────────────────────────
-# 2) Diet Types (for Spoonacular)
-# ───────────────────────────────────────────────────────────
+# List of possible diet types used by Spoonacular
 diet_types = [
     "Gluten Free", "Ketogenic", "Vegetarian", "Lacto-Vegetarian",
     "Ovo-Vegetarian", "Vegan", "Pescetarian", "Paleo",
     "Primal", "Low FODMAP", "Whole30"
 ]
 
-# ───────────────────────────────────────────────────────────
-# 3) Wikipedia Beverages (Drink by Personality)
-# ───────────────────────────────────────────────────────────
+# Using Wikipedia to find beverages for the "Drink by Personality" option
 @st.cache_data
 def get_wikipedia_beverages():
     """
-    Scrapes 'Table of food nutrients' from Wikipedia, focusing on
-    the 16th table (beverages). Returns a DataFrame.
+    Scraping Wikipedia's 'Table of food nutrients' page to 
+    retrieve a list of beverages from the 16th wikitable.
     """
     url = "https://en.wikipedia.org/wiki/Table_of_food_nutrients"
     response = requests.get(url)
     soup = BeautifulSoup(response.text, "html.parser")
-
+    
     tables = soup.find_all("table", {"class": "wikitable"})
-    beverages_table = tables[15]  # The 16th wikitable on the page
-
+    beverages_table = tables[15]
+    
     df = pd.read_html(str(beverages_table))[0]
-    df.columns = ["Food", "Measure", "Grams", "Calories", "Protein",
-                  "Carb", "Fiber", "Fat", "Sat_fat"]
-
-    # Remove any header rows labeled 'Beverages'
+    df.columns = ["Food", "Measure", "Grams", "Calories", "Protein", "Carb", "Fiber", "Fat", "Sat_fat"]
+    
+    # Excluding any header row labeled 'Beverages'
     df = df[df["Food"] != "Beverages"]
     return df
 
@@ -90,74 +73,68 @@ beverages_df = get_wikipedia_beverages()
 
 def suggest_beverage(personality):
     """
-    Picks a random beverage from the Wikipedia table if 
-    'personality' is in PERSONALITY_TO_CUISINE, else returns Water.
+    Picking a random beverage from our Wikipedia table if the personality is valid.
+    Returning 'Water' if the personality is unrecognized.
     """
     if personality in PERSONALITY_TO_CUISINE:
         return beverages_df["Food"].sample(n=1).values[0]
     return "Water"
 
-# ───────────────────────────────────────────────────────────
-# 4) AllRecipes Scraper (By Meal Type)
-# ───────────────────────────────────────────────────────────
+# Using AllRecipes to fetch recipes by meal type (e.g., Breakfast, Lunch, Dinner, Snacks)
 @st.cache_data
 def scrape_allrecipes(meal_type_url):
     """
-    Fetches a random recipe from AllRecipes.com for the given meal_type_url.
-    Attempts to parse some nutrition info from the page as well.
+    Grabbing a random recipe from AllRecipes for a specific meal type.
+    Parsing the HTML to gather title, image, ingredients, instructions, 
+    and any available nutrition info.
     """
     headers = {"User-Agent": "Mozilla/5.0"}
     resp = requests.get(meal_type_url, headers=headers)
     if resp.status_code != 200:
         return None
-
+    
     soup = BeautifulSoup(resp.text, "lxml")
     links = soup.select("a[href*='/recipe/']")
     if not links:
         return None
-
+    
     recipe_url = random.choice(links)["href"]
     recipe_resp = requests.get(recipe_url, headers=headers)
     if recipe_resp.status_code != 200:
         return None
-
+    
     recipe_soup = BeautifulSoup(recipe_resp.text, "lxml")
-
-    # Title
+    
     title_tag = recipe_soup.find("h1")
     title = title_tag.text.strip() if title_tag else "Unknown Recipe"
-
-    # Image
+    
     image_tag = recipe_soup.select_one("img.card__img")
     image_url = image_tag.get("data-src", image_tag.get("src", "")) if image_tag else ""
-
-    # Ingredients -> Convert to Spoonacular-like structure
+    
     raw_ingredients = [i.get_text(strip=True) for i in recipe_soup.select(".mm-recipes-structured-ingredients__list-item")]
     extended_ingredients = [{"original": ing} for ing in raw_ingredients]
-
-    # Instructions -> Single string
-    step_texts = [s.get_text(strip=True) for s in recipe_soup.select(".mntl-sc-block-html")]
-    instructions = "\n".join(step_texts) if step_texts else "No instructions available."
-
-    # Parse nutrition from AllRecipes if available
+    
+    steps = [s.get_text(strip=True) for s in recipe_soup.select(".mntl-sc-block-html")]
+    instructions = "\n".join(steps) if steps else "No instructions available."
+    
     parsed_nutrients = []
     nutrition_table = recipe_soup.select_one(".mm-recipes-nutrition-facts-label__table")
     if nutrition_table:
         for row in nutrition_table.find_all("tr"):
             cols = row.find_all("td")
             if len(cols) == 2:
-                nutrient_name = cols[0].get_text(strip=True)
-                nutrient_value = cols[1].get_text(strip=True)
+                n_name = cols[0].get_text(strip=True)
+                n_value = cols[1].get_text(strip=True)
                 parsed_nutrients.append({
-                    "name": nutrient_name,
-                    "amount": nutrient_value,
+                    "name": n_name,
+                    "amount": n_value,
                     "unit": ""
                 })
-
-    # Return in a Spoonacular-like format
+    
     return {
         "title": title,
         "image": image_url,
+        "readyInMinutes": "N/A (AllRecipes)",
         "extendedIngredients": extended_ingredients,
         "instructions": instructions,
         "nutrition": {
@@ -165,12 +142,12 @@ def scrape_allrecipes(meal_type_url):
         }
     }
 
-# ───────────────────────────────────────────────────────────
-# 5) Spoonacular API Helpers
-# ───────────────────────────────────────────────────────────
+# Simplifying our calls to the Spoonacular API
 @st.cache_data
 def fetch_api(url, params):
-    """Generic GET request for Spoonacular or other APIs; returns JSON."""
+    """
+    Calling API with given params and returning JSON data if it succeeds.
+    """
     try:
         resp = requests.get(url, params=params)
         if resp.status_code == 200:
@@ -181,18 +158,17 @@ def fetch_api(url, params):
 
 def get_recipe_details_by_id(recipe_id):
     """
-    Fetches a Spoonacular recipe's full details (ingredients,
-    instructions, nutrition) by its ID.
+    Retrieving full details about a Spoonacular recipe by ID,
+    including ingredients, instructions, and nutrition.
     """
     url = f"https://api.spoonacular.com/recipes/{recipe_id}/information"
     params = {"apiKey": SPOONACULAR_API_KEY, "includeNutrition": True}
     return fetch_api(url, params)
 
-# Personality-based (Spoonacular)
 def get_recipe_by_personality(personality, diet):
     """
-    Random recipe from Spoonacular, matching cuisine from the personality
-    and applying the chosen diet.
+    Getting a random Spoonacular recipe that matches a personality-based cuisine 
+    and aligns with a selected diet.
     """
     cuisine_list = PERSONALITY_TO_CUISINE.get(personality, ["Italian"])
     cuisine = cuisine_list[0] if cuisine_list else "Italian"
@@ -209,11 +185,10 @@ def get_recipe_by_personality(personality, diet):
         return data["recipes"][0]
     return None
 
-# Nutrient-based (Spoonacular)
 def get_recipe_by_nutrients(nutrient, min_val, max_val, max_time):
     """
-    Search Spoonacular by nutrient constraints. e.g. minCalories=100, maxCalories=500.
-    If a result is found, get full details by ID.
+    Searching for a Spoonacular recipe by specifying nutrient constraints 
+    (like 'Calories', 'Protein', or 'Fat') and a max cooking time.
     """
     url = "https://api.spoonacular.com/recipes/findByNutrients"
     params = {
@@ -230,11 +205,10 @@ def get_recipe_by_nutrients(nutrient, min_val, max_val, max_time):
         return get_recipe_details_by_id(recipe_id)
     return None
 
-# Ingredient-based (Spoonacular)
 def get_recipe_by_ingredient(ingredient, max_time):
     """
-    Fetch Spoonacular recipe by including a specific ingredient
-    and restricting total prep time to 'max_time'.
+    Finding a Spoonacular recipe that includes a certain ingredient and 
+    stays within a chosen maximum preparation time.
     """
     url = "https://api.spoonacular.com/recipes/complexSearch"
     params = {
@@ -246,21 +220,18 @@ def get_recipe_by_ingredient(ingredient, max_time):
     }
     data = fetch_api(url, params)
     if data and "results" in data and len(data["results"]) > 0:
-        r_id = data["results"][0]["id"]
-        return get_recipe_details_by_id(r_id)
+        return get_recipe_details_by_id(data["results"][0]["id"])
     return None
 
-# ───────────────────────────────────────────────────────────
-# User Options (5 total, in the order you requested)
-# ───────────────────────────────────────────────────────────
+# Providing five main search approaches
 search_type = st.radio(
-    "## Choose Your Option:",
+    "## Please choose how you'd like to find a recipe or drink:",
     [
         "By Personality",       # 1
         "By Nutrients",         # 2
         "By Ingredient",        # 3
-        "By Meal Type",         # 4 (AllRecipes)
-        "Drink by Personality"  # 5 (Wikipedia)
+        "By Meal Type",         # 4
+        "Drink by Personality"  # 5
     ]
 )
 
@@ -270,7 +241,7 @@ drink = None
 # 1) By Personality (Spoonacular)
 if search_type == "By Personality":
     personality = st.selectbox("Pick your personality trait", list(PERSONALITY_TO_CUISINE.keys()))
-    diet = st.selectbox("Choose your diet preference", diet_types)
+    diet = st.selectbox("Pick a diet preference", diet_types)
 
     if st.button("Find Recipe"):
         recipe = get_recipe_by_personality(personality, diet)
@@ -278,24 +249,24 @@ if search_type == "By Personality":
 # 2) By Nutrients (Spoonacular)
 elif search_type == "By Nutrients":
     nutrient = st.selectbox("Nutrient to filter by", ["Calories", "Protein", "Fat"])
-    min_value = st.number_input(f"Min {nutrient}", min_value=10, value=100)
-    max_value = st.number_input(f"Max {nutrient}", min_value=10, value=500)
+    min_val = st.number_input(f"Min {nutrient}", min_value=10, value=100)
+    max_val = st.number_input(f"Max {nutrient}", min_value=10, value=500)
     max_time = st.slider("Max preparation time (minutes)", 5, 120, 30)
 
     if st.button("Find Recipe"):
-        recipe = get_recipe_by_nutrients(nutrient, min_value, max_value, max_time)
+        recipe = get_recipe_by_nutrients(nutrient, min_val, max_val, max_time)
 
 # 3) By Ingredient (Spoonacular)
 elif search_type == "By Ingredient":
-    ingredient = st.text_input("Enter an ingredient")
+    ingredient = st.text_input("Type in an ingredient (e.g., chicken, tofu, etc.)")
     max_time = st.slider("Max preparation time (minutes)", 5, 120, 30)
 
     if st.button("Find Recipe"):
         recipe = get_recipe_by_ingredient(ingredient, max_time)
 
-# 4) By Meal Type (AllRecipes) – NO max prep time
+# 4) By Meal Type (AllRecipes)
 elif search_type == "By Meal Type":
-    st.write("Select a meal type to fetch a random recipe from AllRecipes (no max prep time).")
+    st.write("Selecting a meal type below to fetch a random recipe from AllRecipes.")
     meal_types = {
         "Breakfast": "https://www.allrecipes.com/recipes/78/breakfast-and-brunch/",
         "Lunch": "https://www.allrecipes.com/recipes/17561/lunch/",
@@ -309,49 +280,37 @@ elif search_type == "By Meal Type":
 
 # 5) Drink by Personality (Wikipedia)
 elif search_type == "Drink by Personality":
-    personality_choice = st.selectbox("Pick your personality trait", list(PERSONALITY_TO_CUISINE.keys()))
+    personality_for_drink = st.selectbox("Pick your personality trait", list(PERSONALITY_TO_CUISINE.keys()))
 
     if st.button("Find Drink"):
-        drink = suggest_beverage(personality_choice)
+        drink = suggest_beverage(personality_for_drink)
 
-# ───────────────────────────────────────────────────────────
-# Display the selected Recipe (Spoonacular or AllRecipes)
-# ───────────────────────────────────────────────────────────
+# Showing the final recipe if found
 if recipe:
     st.subheader(f"Recommended Recipe: {recipe.get('title', 'No title')}")
-    
-    # Show image if available
     if recipe.get("image"):
         st.image(recipe["image"], width=400)
-    
-    # Show prep time
     st.write(f"### Total Preparation Time: {recipe.get('readyInMinutes', 'N/A')} minutes")
 
-    # Show ingredients
     st.write("### Ingredients:")
     for ing in recipe.get("extendedIngredients", []):
         st.write(f"- {ing['original']}")
 
-    # Show instructions
     st.write("### Instructions:")
     st.write(recipe.get("instructions", "No instructions available."))
 
-    # Show nutrition if present
     if "nutrition" in recipe and "nutrients" in recipe["nutrition"]:
         nutrients_list = recipe["nutrition"]["nutrients"]
-        if len(nutrients_list) > 0:
+        if nutrients_list:
             st.write("### Nutrition Information:")
             for n in nutrients_list:
                 st.write(f"- {n['name']}: {n['amount']} {n['unit']}")
         else:
-            st.write("No nutrition data found.")
+            st.write("No nutrition data available.")
 
-# ───────────────────────────────────────────────────────────
-# Display the selected Drink (Wikipedia)
-# ───────────────────────────────────────────────────────────
+# Displaying the beverage 
 if drink:
     st.subheader(f"🍹 Suggested Drink: {drink}")
 
-# Show a friendly message if no recipe/drink has been chosen yet
 if not recipe and not drink:
-    st.write("Feel free to pick an option above to discover a new recipe or a drink!")
+    st.write("Pick an option above to start exploring recipes or beverages!")
