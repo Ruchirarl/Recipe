@@ -158,7 +158,6 @@ def scrape_allrecipes(meal_type_url):
     return {
         "title": title,
         "image": image_url,
-        "readyInMinutes": "N/A (AllRecipes)",
         "extendedIngredients": extended_ingredients,
         "instructions": instructions,
         "nutrition": {
